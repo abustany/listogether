@@ -1,0 +1,83 @@
+.Lists {
+  margin: 0;
+  padding: 1rem;
+  list-style: none;
+  flex: 1 1 auto;
+  max-width: 40rem;
+  overflow: auto;
+}
+
+.Lists > li {
+  border-top: 1px solid #ddd;
+  border-left: 2px solid #bbb;
+  border-right: 2px solid #bbb;
+  border-bottom: 0;
+  background-color: #fff;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.Lists > li:first-child {
+  border-top: 2px solid #bbb;
+  border-radius: 10px 10px 0 0;
+}
+
+.Lists > li:last-child {
+  border-bottom: 2px solid #bbb;
+  border-radius: 0 0 10px 10px;
+}
+
+.Lists > li > * {
+  padding: 1rem;
+}
+
+.Lists a {
+  flex: 1 1 100%;
+}
+
+.Lists button {
+  color: inherit;
+  border: 0;
+  background-color: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  display: flex;
+  align-items: center;
+  gap: .2rem;
+}
+
+.Fallback {
+  padding: 1rem;
+  justify-content: center;
+}
+
+.AddButton {
+  flex: 1 1 100%;
+}
+
+.DeleteButton {
+  flex: 0 0 auto;
+  transition: color 0s, background-color .3s linear;
+  transition-delay: .5s;
+}
+
+.DeleteButton > span {
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 0;
+  transition: max-width .5s;
+}
+
+.DeleteButtonConfirm {
+  /* we need !important here else rules are overriden by .Lists button above */
+  color: white !important;
+  background-color: #b00 !important;
+  transition-duration: 0s, 0s;
+  transition-delay: 0s;
+}
+
+.DeleteButtonConfirm > span {
+  max-width: 20em;
+}

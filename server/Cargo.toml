@@ -1,0 +1,20 @@
+[package]
+name = "listogether-server"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.66"
+automerge = "0.2.0"
+axum = { version = "0.6.1", features = ["ws"] }
+base64 = "0.13.1"
+clap = { version = "4.0.29", features = ["derive", "env"] }
+ecdsa = { version = "0.14.8", features = ["sign", "verify"] }
+env_logger = "0.10.0"
+log = "0.4.17"
+p256 = "0.11.1"
+rand = "0.8.5"
+signature = "1.6.4"
+tokio = { version = "1.23.0", features = ["full"] }

@@ -1,0 +1,20 @@
+Each browser has a unique device ID (can be tampered with unless generated+signed server side! - would allow "cloning" a device)
+A device can be linked to an account -> used to seed list of synchronized lists
+A device has a number of lists
+Each list has a unique ID (can be tempered but doesn't matter - messing up only breaks user's account)
+
+Server API:
+
+# POST /sync/LIST_ID
+Content-Type: application/octet-stream
+
+Request body: contents of generateSyncMessage
+Response body: contents of server's receiveSyncMessage return value
+
+# GET /list/LIST_ID
+
+Response body: list data that can be piped to Automerge.load
+
+# POST /device/register
+
+Response body: signed UUID to be used as a device ID
