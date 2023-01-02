@@ -68,9 +68,9 @@ async fn main() -> Result<()> {
 
             let app = Router::new()
                 .route("/health", get(healthcheck_handler))
-                .route("/device/register", post(device_register_handler))
+                .route("/api/v1/device/register", post(device_register_handler))
                 .with_state(app_state)
-                .route("/document/:id/sync", post(sync_handler));
+                .route("/api/v1/document/:id/sync", post(sync_handler));
 
             info!("Starting server on {}", &listen_address);
 
