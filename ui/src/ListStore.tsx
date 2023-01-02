@@ -3,7 +3,7 @@ import { ParentProps, createContext, useContext, createSignal } from "solid-js";
 import { v4 as uuidv4 } from "uuid";
 import { fromByteArray, toByteArray } from "base64-js";
 
-import { List, ListChange } from "./list";
+import { List, ListChange } from "./list-schema";
 
 interface ListStore {
   getLists(): Readonly<List>[];
