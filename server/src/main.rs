@@ -10,7 +10,8 @@ use axum::{
     Router,
 };
 use clap::{Parser, Subcommand};
-use log::info;
+use tracing::info;
+use tracing_subscriber;
 
 mod device_id;
 
@@ -45,7 +46,15 @@ struct AppState {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::FmtSubscriber::builder()
+            .with_env_filter(
+                tracing_subscriber::filter::EnvFilter::from_default_env()
+                    .add_directive(tracing_subscriber::filter::LevelFilter::INFO.into())
+                    .add_directive("tower_http=trace".parse()?)
+            )
+            .finish()
+    ).expect("setting default subscriber failed");
 
     let args = Args::parse();
 
@@ -70,7 +79,15 @@ async fn main() -> Result<()> {
                 .route("/health", get(healthcheck_handler))
                 .route("/api/v1/device/register", post(device_register_handler))
                 .with_state(app_state)
-                .route("/api/v1/document/:id/sync", post(sync_handler));
+                .route("/api/v1/document/:id/sync", post(sync_handler))
+                .layer(tower_http::trace::TraceLayer::new_for_http()
+                    .on_request(())
+                    .on_response(
+                        tower_http::trace::DefaultOnResponse::new()
+                            .level(tracing::Level::INFO)
+                            .latency_unit(tower_http::LatencyUnit::Micros)
+                    )
+                );
 
             info!("Starting server on {}", &listen_address);
 
