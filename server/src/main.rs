@@ -3,11 +3,9 @@ use std::{net::SocketAddr, sync::Arc};
 use anyhow::{anyhow, Context, Result};
 use automerge::{Automerge, ActorId};
 use axum::{
-    body::Bytes,
-    extract::{Path, State},
-    http::StatusCode,
+    extract::{Path, State, WebSocketUpgrade, ws::{WebSocket, Message}},
     routing::{get, post},
-    Router,
+    Router, response::Response,
 };
 use clap::{Parser, Subcommand};
 use tracing::info;
@@ -79,7 +77,7 @@ async fn main() -> Result<()> {
                 .route("/health", get(healthcheck_handler))
                 .route("/api/v1/device/register", post(device_register_handler))
                 .with_state(app_state)
-                .route("/api/v1/document/:id/sync", post(sync_handler))
+                .route("/api/v1/document/:id/sync", get(sync_handler))
                 .layer(tower_http::trace::TraceLayer::new_for_http()
                     .on_request(())
                     .on_response(
@@ -111,13 +109,44 @@ async fn device_register_handler(State(state): State<Arc<AppState>>) -> String {
 
 const SERVER_ACTOR_ID: [u8; 1] = [0];
 
-async fn sync_handler(Path(doc_id): Path<String>, body: Bytes) -> std::result::Result<String, (StatusCode, String)> {
-    let message = automerge::sync::Message::decode(&body).context("error decoding message").map_err(|e| (StatusCode::BAD_REQUEST, format!("{:?}", e)))?;
+async fn sync_handler(Path(doc_id): Path<String>, ws: WebSocketUpgrade) -> Response {
+
+    ws.on_upgrade(|socket| sync_socket_handler(doc_id, socket))
+}
+
+async fn sync_socket_handler(doc_id: String, mut socket: WebSocket) {
     let actor_id = ActorId::from(&SERVER_ACTOR_ID);
     let mut doc = Automerge::new().with_actor(actor_id);
     let mut sync_state = automerge::sync::State::new();
 
-    doc.receive_sync_message(&mut sync_state, message).context("error receiving message").map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("{:?}", e)))?;
+    while let Some(msg) = socket.recv().await {
+        let msg = if let Ok(msg) = msg {
+            msg
+        } else {
+            // client disconnected
+            return;
+        };
 
-    Ok(format!("Synchronizing {}", &doc_id))
+        let payload = match msg {
+            Message::Binary(x) => x,
+            _ => {
+                // ignore error here, this is a message sent just before closing the connection
+                _ = socket.send(r#"{"error": "invalid message type"}"#.into()).await;
+                return;
+            },
+        };
+
+        let message = match automerge::sync::Message::decode(&payload) {
+            Err(_) => {
+                _ = socket.send(r#"{"error": "error decoding sync message"}"#.into()).await;
+                return;
+            }
+            Ok(msg) => msg,
+        };
+
+        if let Err(_) = doc.receive_sync_message(&mut sync_state, message) {
+            _ = socket.send(r#"{"error": "error receiving sync message"}"#.into()).await;
+            return;
+        }
+    }
 }
