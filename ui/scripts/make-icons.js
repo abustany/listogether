@@ -7,6 +7,7 @@ import * as path from "path";
 const ICONS = [
   "arrow-left",
   "plus",
+  "refresh-cw",
   "trash-2"
 ];
 

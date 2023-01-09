@@ -1,10 +1,16 @@
-.Lists {
+.Wrapper {
   margin: 0;
   padding: 1rem;
-  list-style: none;
   flex: 1 1 auto;
   max-width: 40rem;
   overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.Lists {
+  flex: 0 0 auto;
+  list-style: none;
 }
 
 .Lists > li {
@@ -80,4 +86,29 @@
 
 .DeleteButtonConfirm > span {
   max-width: 20em;
+}
+
+.SyncStatus {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.SyncIcon {
+  animation-name: sync-rotation;
+  animation-iteration-count: infinite;
+  animation-duration: 1s;
+  animation-timing-function: linear;
+}
+
+@keyframes sync-rotation {
+  from {
+    transform: rotateZ(0deg);
+  }
+
+  to {
+    transform: rotateZ(360deg);
+  }
 }

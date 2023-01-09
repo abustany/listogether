@@ -6,6 +6,13 @@ export default defineConfig({
   plugins: [wasm(), solidPlugin()],
   server: {
     port: 3000,
+    proxy: {
+      "^/api/v1/document/.*/sync": {
+        target: "ws://127.0.0.1:8789",
+        ws: true,
+      },
+      "/api": "http://127.0.0.1:8789",
+    },
   },
   build: {
     target: "esnext",

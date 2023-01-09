@@ -6,6 +6,7 @@ import { useLists } from "./ListStore";
 import styles from "./Lists.module.css";
 import { Plus } from "./icons/Plus";
 import { Trash2 } from "./icons/Trash2";
+import { RefreshCw } from "./icons/RefreshCw";
 
 const DeleteButton: Component<{ onDelete: () => void }> = (props) => {
   const [confirm, setConfirm] = createSignal(false);
@@ -47,7 +48,7 @@ const ListItem: Component<{ id: string; name: string }> = (props) => {
 };
 
 export const Lists: Component = () => {
-  const { getLists, addList } = useLists();
+  const { getLists, addList, isSynchronizing, sync } = useLists();
   const navigate = useNavigate();
 
   const onAddNewList = () => {
@@ -56,16 +57,23 @@ export const Lists: Component = () => {
   };
 
   return (
-    <ul class={styles.Lists}>
-      <For each={getLists()} fallback={<li class={styles.Fallback}>No list yet!</li>}>
-        {(item) => <ListItem id={item.id} name={item.name} />}
-      </For>
-      <li>
-        <button onclick={onAddNewList} class={styles.AddButton}>
-          <Plus size="1em" />
-          Add new list…
-        </button>
-      </li>
-    </ul>
+    <div class={styles.Wrapper}>
+      <ul class={styles.Lists}>
+        <For each={getLists()} fallback={<li class={styles.Fallback}>No list yet!</li>}>
+          {(item) => <ListItem id={item.id} name={item.name} />}
+        </For>
+        <li>
+          <button onclick={onAddNewList} class={styles.AddButton}>
+            <Plus size="1em" />
+            Add new list…
+          </button>
+        </li>
+      </ul>
+
+      <div class={styles.SyncStatus}>
+        <button onclick={sync}>Synchronize now</button>
+        {isSynchronizing() && <RefreshCw class={styles.SyncIcon} />}
+      </div>
+    </div>
   );
 };

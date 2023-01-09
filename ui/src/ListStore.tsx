@@ -10,12 +10,15 @@ interface ListStore {
   addList(name: string): string;
   deleteList(id: string): void;
   updateList(id: string, changes: ListChange[]): void;
+  sync(): void;
+  isSynchronizing(): boolean;
 }
 
 interface ListIds {
   ids: string[];
 }
 
+const DEVICE_ID_KEY = "listogether.device_id";
 const LIST_IDS_KEY = "listogether.list_ids";
 const LIST_KEY_PREFIX = "listogether.list.";
 
@@ -69,6 +72,24 @@ function applyChange(doc: List, c: ListChange): void {
 }
 
 const unixTimestamp = () => Math.floor(Date.now() / 1000);
+
+async function getDeviceId(): Promise<string> {
+  let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+  if (deviceId) return Promise.resolve(deviceId);
+
+  const res = await fetch("/api/v1/device/register", {
+    method: "POST",
+  });
+
+  if (res.status !== 200) {
+    throw new Error(`unexpected HTTP status ${res.status}`);
+  }
+
+  deviceId = await res.text();
+  localStorage.setItem(DEVICE_ID_KEY, deviceId);
+
+  return deviceId;
+}
 
 const listStore = {
   __loadListIds(): Automerge.Doc<ListIds> {
@@ -141,6 +162,70 @@ const listStore = {
 
     return updated;
   },
+  async sync(): Promise<void> {
+    const deviceId = await getDeviceId();
+    console.log(`device ID is ${deviceId}`);
+
+    // First sync the document list
+    let documentList = loadDoc(LIST_IDS_KEY);
+    if (!documentList) return;
+
+    let syncState = Automerge.initSyncState();
+
+    const ws = new WebSocket(`ws://${window.location.host}/api/v1/document/foo/sync`);
+    ws.binaryType = "arraybuffer";
+
+    const tick = (incomingMessage: Uint8Array | null) => {
+      let reply: Uint8Array | null;
+      const otherIsFinished = incomingMessage !== null && incomingMessage.byteLength === 0;
+
+      if (incomingMessage !== null && incomingMessage.byteLength > 0) {
+        const [updatedDoc, nextSyncState] = Automerge.receiveSyncMessage(documentList!, syncState, incomingMessage);
+        documentList = updatedDoc;
+        syncState = nextSyncState;
+      }
+
+      const [nextSyncState, syncMessage] = Automerge.generateSyncMessage(documentList!, syncState);
+      syncState = nextSyncState;
+      reply = syncMessage;
+
+      if (otherIsFinished && reply === null) {
+        // everyone is done
+        console.log("received empty message and nothing to send, closing");
+        ws.close();
+        return;
+      }
+
+      const payload = reply?.buffer || new ArrayBuffer(0);
+      console.log(`sending sync message (${payload.byteLength} bytes)`);
+      ws.send(payload);
+    };
+
+    return new Promise((resolve, reject) => {
+      ws.onerror = (ev) => {
+        reject(ev);
+      };
+      ws.onclose = () => {
+        resolve();
+      };
+      ws.onopen = () => {
+        tick(null);
+      };
+      ws.onmessage = (ev) => {
+        const data = ev.data;
+
+        if (!(data instanceof ArrayBuffer)) {
+          reject("received non-binary message");
+          ws.close();
+          return;
+        }
+
+        console.log(`received sync message (${data.byteLength} bytes)`);
+
+        tick(new Uint8Array(data));
+      };
+    });
+  },
 };
 
 export const ListStoreContext = createContext<ListStore>({
@@ -148,12 +233,15 @@ export const ListStoreContext = createContext<ListStore>({
   addList: (_name: string) => "",
   deleteList: (_id: string) => {},
   updateList: (_id: string, _changes: ListChange[]) => {},
+  sync: () => {},
+  isSynchronizing: () => false,
 });
 
 export function ListStoreProvider(props: ParentProps) {
   const [getLists, setLists] = createSignal<List[]>(listStore.loadLists());
+  const [isSynchronizing, setIsSynchronizing] = createSignal<boolean>(false);
   const p: ListStore = {
-    getLists: getLists,
+    getLists,
     addList(name: string): string {
       const l = listStore.addList(name);
       setLists((lists) => [...lists, l]);
@@ -180,6 +268,13 @@ export function ListStoreProvider(props: ParentProps) {
       updatedLists[idx] = listStore.updateList(lists[idx], changes);
       setLists(updatedLists);
     },
+    sync(): void {
+      setIsSynchronizing(true);
+      listStore.sync().finally(() => {
+        setIsSynchronizing(false);
+      });
+    },
+    isSynchronizing,
   };
 
   return <ListStoreContext.Provider value={p}>{props.children}</ListStoreContext.Provider>;
