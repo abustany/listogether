@@ -7,6 +7,7 @@ import styles from "./Lists.module.css";
 import { Plus } from "./icons/Plus";
 import { Trash2 } from "./icons/Trash2";
 import { RefreshCw } from "./icons/RefreshCw";
+import { createSlowBoolSignal } from "./slow-bool-signal";
 
 const DeleteButton: Component<{ onDelete: () => void }> = (props) => {
   const [confirm, setConfirm] = createSignal(false);
@@ -50,6 +51,7 @@ const ListItem: Component<{ id: string; name: string }> = (props) => {
 export const Lists: Component = () => {
   const { getLists, addList, isSynchronizing, sync } = useLists();
   const navigate = useNavigate();
+  const slowIsSynchronizing = createSlowBoolSignal(isSynchronizing, 1000);
 
   const onAddNewList = () => {
     const listId = addList("New list");
@@ -72,7 +74,7 @@ export const Lists: Component = () => {
 
       <div class={styles.SyncStatus}>
         <button onclick={sync}>Synchronize now</button>
-        {isSynchronizing() && <RefreshCw class={styles.SyncIcon} />}
+        {slowIsSynchronizing() && <RefreshCw class={styles.SyncIcon} />}
       </div>
     </div>
   );
