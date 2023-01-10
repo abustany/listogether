@@ -53,8 +53,8 @@ export const Lists: Component = () => {
   const navigate = useNavigate();
   const slowIsSynchronizing = createSlowBoolSignal(isSynchronizing, 1000);
 
-  const onAddNewList = () => {
-    const listId = addList("New list");
+  const onAddNewList = async () => {
+    const listId = await addList("New list");
     navigate(`/${listId}`);
   };
 

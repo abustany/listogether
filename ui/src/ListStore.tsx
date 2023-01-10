@@ -1,34 +1,21 @@
 import * as Automerge from "@automerge/automerge";
-import { ParentProps, createContext, useContext, createSignal } from "solid-js";
+import { ParentProps, createContext, useContext, createSignal, createResource } from "solid-js";
 import { v4 as uuidv4 } from "uuid";
-import { fromByteArray, toByteArray } from "base64-js";
+import { DBSchema, IDBPDatabase, openDB, StoreNames } from "idb";
 
 import { List, ListChange } from "./list-schema";
 
 interface ListStore {
   getLists(): Readonly<List>[];
-  addList(name: string): string;
-  deleteList(id: string): void;
-  updateList(id: string, changes: ListChange[]): void;
+  addList(name: string): Promise<string>;
+  deleteList(id: string): Promise<void>;
+  updateList(listId: string, changes: ListChange[]): Promise<void>;
   sync(): void;
   isSynchronizing(): boolean;
 }
 
 interface ListIds {
   ids: string[];
-}
-
-const DEVICE_ID_KEY = "listogether.device_id";
-const LIST_IDS_KEY = "listogether.list_ids";
-const LIST_KEY_PREFIX = "listogether.list.";
-
-function loadDoc<T>(key: string): Automerge.Doc<T> | null {
-  const val = localStorage.getItem(key);
-  return val === null ? null : Automerge.load(toByteArray(val));
-}
-
-function saveDoc<T>(key: string, doc: Automerge.Doc<T>): void {
-  localStorage.setItem(key, fromByteArray(Automerge.save(doc)));
 }
 
 function describeChange(c: ListChange): string {
@@ -74,8 +61,8 @@ function applyChange(doc: List, c: ListChange): void {
 const unixTimestamp = () => Math.floor(Date.now() / 1000);
 
 async function getDeviceId(): Promise<string> {
-  let deviceId = localStorage.getItem(DEVICE_ID_KEY);
-  if (deviceId) return Promise.resolve(deviceId);
+  let deviceId = await storage.loadDeviceId();
+  if (deviceId) return deviceId;
 
   const res = await fetch("/api/v1/device/register", {
     method: "POST",
@@ -86,41 +73,131 @@ async function getDeviceId(): Promise<string> {
   }
 
   deviceId = await res.text();
-  localStorage.setItem(DEVICE_ID_KEY, deviceId);
+  await storage.saveDeviceId(deviceId);
 
   return deviceId;
 }
 
+class Storage {
+  private db: Promise<IDBPDatabase<Storage.Schema>>;
+
+  constructor() {
+    this.db = openDB<Storage.Schema>("listogether", 1, {
+      upgrade(database) {
+        database.createObjectStore(Storage.DocStore, {});
+        database.createObjectStore(Storage.MetaStore, {});
+      },
+    });
+  }
+
+  private async saveDocToStore<T>(
+    store: StoreNames<Storage.Schema>,
+    docId: string,
+    doc: Automerge.Doc<T>,
+  ): Promise<void> {
+    (await this.db).put(store, Automerge.save(doc), docId);
+  }
+
+  async saveDoc<T>(docId: string, doc: Automerge.Doc<T>): Promise<void> {
+    return this.saveDocToStore(Storage.DocStore, docId, doc);
+  }
+
+  private async loadDocFromStore<T>(
+    store: StoreNames<Storage.Schema>,
+    docId: string,
+  ): Promise<Automerge.Doc<T> | null> {
+    const data = await (await this.db).get(store, docId);
+    if (!data) return null;
+    return Automerge.load<T>(data as Uint8Array);
+  }
+
+  async loadDoc<T>(docId: string): Promise<Automerge.Doc<T> | null> {
+    return this.loadDocFromStore(Storage.DocStore, docId);
+  }
+
+  async loadDocs<T>(docIds: string[]): Promise<(Automerge.Doc<T> | null)[]> {
+    const tx = (await this.db).transaction(Storage.DocStore, "readonly");
+    const docs = await Promise.all(docIds.map((id) => tx.store.get(id)));
+    return docs.map((data) => (data ? Automerge.load<T>(data) : null));
+  }
+
+  async deleteDoc(docId: string): Promise<void> {
+    return (await this.db).delete(Storage.DocStore, docId);
+  }
+
+  async saveListIds(ids: Automerge.Doc<ListIds>): Promise<void> {
+    return this.saveDocToStore(Storage.MetaStore, Storage.MetaKeys.list_ids, ids);
+  }
+
+  async loadListIds(): Promise<Automerge.Doc<ListIds> | null> {
+    return await this.loadDocFromStore(Storage.MetaStore, Storage.MetaKeys.list_ids);
+  }
+
+  async loadDeviceId(): Promise<string | null> {
+    const val = await (await this.db).get(Storage.MetaStore, Storage.MetaKeys.device_id);
+    return val ? (val as string) : null;
+  }
+
+  async saveDeviceId(id: string): Promise<void> {
+    (await this.db).put(Storage.MetaStore, id, Storage.MetaKeys.device_id);
+  }
+}
+
+namespace Storage {
+  export const DocStore = "docs";
+  export const MetaStore = "meta";
+  export const MetaKeys = {
+    device_id: "device_id",
+    list_ids: "list_ids",
+  };
+
+  export interface Schema extends DBSchema {
+    [DocStore]: {
+      key: string;
+      value: Uint8Array;
+    };
+    [MetaStore]: {
+      key: string;
+      value: unknown;
+    };
+  }
+}
+
+const storage = new Storage();
+
 const listStore = {
-  __loadListIds(): Automerge.Doc<ListIds> {
+  async __loadListIds(): Promise<Automerge.Doc<ListIds>> {
     return (
-      loadDoc(LIST_IDS_KEY) ??
+      (await storage.loadListIds()) ??
       Automerge.change(Automerge.init<ListIds>(), { message: "Initialize id list", time: unixTimestamp() }, (x) => {
         x.ids = [];
       })
     );
   },
-  __updateListIds(listIds: Automerge.Doc<ListIds>, message: string, f: (ids: string[]) => void) {
-    saveDoc(
-      LIST_IDS_KEY,
+
+  async __updateListIds(listIds: Automerge.Doc<ListIds>, message: string, f: (ids: string[]) => void): Promise<void> {
+    return storage.saveListIds(
       Automerge.change(listIds, { message, time: unixTimestamp() }, (x) => {
         f(x.ids);
       }),
     );
   },
-  loadLists(): List[] {
+
+  async loadLists(): Promise<List[]> {
     function listExists(l: List | null): l is List {
       return l !== null;
     }
 
-    return this.__loadListIds()
-      .ids.map((id) => loadDoc<List>(LIST_KEY_PREFIX + id))
-      .filter(listExists);
+    const listIds = (await this.__loadListIds()).ids;
+
+    return (await storage.loadDocs<List>(listIds)).filter(listExists);
   },
-  saveList(l: List): void {
-    saveDoc(LIST_KEY_PREFIX + l.id, l);
+
+  async saveList(l: List): Promise<void> {
+    return storage.saveDoc(l.id, l);
   },
-  addList(name: string): List {
+
+  async addList(name: string): Promise<List> {
     const l = Automerge.change(
       Automerge.init<List>(),
       { message: `Create list ${name}`, time: unixTimestamp() },
@@ -130,21 +207,25 @@ const listStore = {
         doc.sections = [];
       },
     );
-    this.saveList(l);
-    this.__updateListIds(this.__loadListIds(), `Add list ${l.id}`, (ids) => ids.push(l.id));
+    await this.saveList(l);
+    await this.__updateListIds(await this.__loadListIds(), `Add list ${l.id}`, (ids) => ids.push(l.id));
     return l;
   },
-  deleteList(id: string): void {
-    localStorage.removeItem(LIST_KEY_PREFIX + id);
 
-    const listIds = this.__loadListIds();
+  async deleteList(id: string): Promise<void> {
+    await storage.deleteDoc(id);
+
+    const listIds = await this.__loadListIds();
     const idx = listIds.ids.findIndex((x) => x === id);
     if (idx === -1) return;
 
-    this.__updateListIds(listIds, `Remove list ${id}`, (ids) => ids.splice(idx, 1));
+    await this.__updateListIds(listIds, `Remove list ${id}`, (ids) => ids.splice(idx, 1));
   },
-  updateList(oldList: List, changes: ListChange[]): List {
-    if (changes.length === 0) return oldList;
+
+  async updateList(listId: string, changes: ListChange[]): Promise<List> {
+    const list = await storage.loadDoc<List>(listId);
+    if (list === null) throw new Error(`list ${listId} does not exist`);
+    if (changes.length === 0) return list;
 
     const changelog = changes.reduce((log, change) => {
       log += describeChange(change);
@@ -152,13 +233,13 @@ const listStore = {
       return log;
     }, "");
 
-    const updated = Automerge.change(oldList, { message: changelog, time: unixTimestamp() }, (doc) => {
+    const updated = Automerge.change(list, { message: changelog, time: unixTimestamp() }, (doc) => {
       changes.forEach((c) => {
         applyChange(doc, c);
       });
     });
 
-    this.saveList(updated);
+    await this.saveList(updated);
 
     return updated;
   },
@@ -167,7 +248,7 @@ const listStore = {
     console.log(`device ID is ${deviceId}`);
 
     // First sync the document list
-    let documentList = loadDoc(LIST_IDS_KEY);
+    let documentList = await storage.loadListIds();
     if (!documentList) return;
 
     let syncState = Automerge.initSyncState();
@@ -230,43 +311,37 @@ const listStore = {
 
 export const ListStoreContext = createContext<ListStore>({
   getLists: () => [],
-  addList: (_name: string) => "",
-  deleteList: (_id: string) => {},
-  updateList: (_id: string, _changes: ListChange[]) => {},
+  addList: (_name: string) => Promise.resolve(""),
+  deleteList: (_id: string) => Promise.resolve(undefined),
+  updateList: (_listId: string, _changes: ListChange[]) => Promise.resolve(undefined),
   sync: () => {},
   isSynchronizing: () => false,
 });
 
 export function ListStoreProvider(props: ParentProps) {
-  const [getLists, setLists] = createSignal<List[]>(listStore.loadLists());
+  const [getLists, { mutate: mutateLists, refetch: refetchLists }] = createResource<List[]>(
+    () => listStore.loadLists(),
+    { initialValue: [] },
+  );
   const [isSynchronizing, setIsSynchronizing] = createSignal<boolean>(false);
   const p: ListStore = {
     getLists,
-    addList(name: string): string {
-      const l = listStore.addList(name);
-      setLists((lists) => [...lists, l]);
+    async addList(name: string): Promise<string> {
+      const l = await listStore.addList(name);
+      await refetchLists();
       return l.id;
     },
-    deleteList(id: string): void {
-      listStore.deleteList(id);
+    async deleteList(id: string): Promise<void> {
+      mutateLists((lists) => lists.filter((l) => l.id !== id));
 
-      const idx = getLists().findIndex((x) => x.id === id);
-      if (idx === -1) return;
-
-      setLists((lists) => {
-        const res = [...lists];
-        res.splice(idx, 1);
-        return res;
-      });
+      await listStore.deleteList(id);
+      await refetchLists();
     },
-    updateList(id: string, changes: ListChange[]): void {
-      const lists = getLists();
-      const idx = lists.findIndex((x) => x.id === id);
-      if (idx === -1) return;
+    async updateList(listId: string, changes: ListChange[]): Promise<void> {
+      // TODO: implement optimistic update?
 
-      const updatedLists = [...lists];
-      updatedLists[idx] = listStore.updateList(lists[idx], changes);
-      setLists(updatedLists);
+      await listStore.updateList(listId, changes);
+      await refetchLists();
     },
     sync(): void {
       setIsSynchronizing(true);
