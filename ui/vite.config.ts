@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      "^/api/v1/document/.*/sync": {
+      "/api/v1/document/sync": {
         target: "ws://127.0.0.1:8789",
         ws: true,
       },

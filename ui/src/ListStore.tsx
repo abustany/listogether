@@ -243,44 +243,79 @@ const listStore = {
 
     return updated;
   },
+  async syncDocument(ws: WebSocket, docId: string, doc: Automerge.Doc<unknown>): Promise<void> {
+    let syncState = Automerge.initSyncState();
+
+    return new Promise((resolve, reject) => {
+      let onMessage: (ev: MessageEvent) => void;
+
+      const unsafeTick = (incomingMessage: Uint8Array | null) => {
+        let reply: Uint8Array | null;
+        const otherIsFinished = incomingMessage !== null && incomingMessage.byteLength === 0;
+
+        if (incomingMessage !== null && incomingMessage.byteLength > 0) {
+          const [updatedDoc, nextSyncState] = Automerge.receiveSyncMessage(doc, syncState, incomingMessage);
+          doc = updatedDoc;
+          syncState = nextSyncState;
+        }
+
+        const [nextSyncState, syncMessage] = Automerge.generateSyncMessage(doc, syncState);
+        syncState = nextSyncState;
+        reply = syncMessage;
+
+        if (otherIsFinished && reply === null) {
+          // everyone is done
+          console.log("received empty message and nothing to send, sync done");
+          ws.removeEventListener("message", onMessage);
+          resolve(undefined);
+          return;
+        }
+
+        const payload = reply?.buffer || new ArrayBuffer(0);
+        console.log(`sending sync message (${payload.byteLength} bytes)`);
+        ws.send(payload);
+      };
+
+      const tick = (incomingMessage: Uint8Array | null) => {
+        try {
+          unsafeTick(incomingMessage);
+        } catch (e) {
+          reject(e);
+        }
+      };
+
+      onMessage = (ev) => {
+        const data = ev.data;
+
+        if (!(data instanceof ArrayBuffer)) {
+          reject("received non-binary message");
+          return;
+        }
+
+        console.log(`received sync message (${data.byteLength} bytes)`);
+        tick(new Uint8Array(data));
+      };
+
+      ws.addEventListener("message", onMessage);
+
+      // send the document ID
+      const binaryDocId = Uint8Array.from(docId.split("").map((x) => x.charCodeAt(0)));
+      ws.send(binaryDocId);
+
+      // start the sync
+      tick(null);
+    });
+  },
   async sync(): Promise<void> {
     const deviceId = await getDeviceId();
     console.log(`device ID is ${deviceId}`);
 
-    // First sync the document list
-    let documentList = await storage.loadListIds();
-    if (!documentList) return;
-
-    let syncState = Automerge.initSyncState();
-
-    const ws = new WebSocket(`ws://${window.location.host}/api/v1/document/foo/sync`);
+    const ws = new WebSocket(`ws://${window.location.host}/api/v1/document/sync`);
     ws.binaryType = "arraybuffer";
 
-    const tick = (incomingMessage: Uint8Array | null) => {
-      let reply: Uint8Array | null;
-      const otherIsFinished = incomingMessage !== null && incomingMessage.byteLength === 0;
-
-      if (incomingMessage !== null && incomingMessage.byteLength > 0) {
-        const [updatedDoc, nextSyncState] = Automerge.receiveSyncMessage(documentList!, syncState, incomingMessage);
-        documentList = updatedDoc;
-        syncState = nextSyncState;
-      }
-
-      const [nextSyncState, syncMessage] = Automerge.generateSyncMessage(documentList!, syncState);
-      syncState = nextSyncState;
-      reply = syncMessage;
-
-      if (otherIsFinished && reply === null) {
-        // everyone is done
-        console.log("received empty message and nothing to send, closing");
-        ws.close();
-        return;
-      }
-
-      const payload = reply?.buffer || new ArrayBuffer(0);
-      console.log(`sending sync message (${payload.byteLength} bytes)`);
-      ws.send(payload);
-    };
+    // First sync the document list
+    const documentList = await storage.loadListIds();
+    if (!documentList) return;
 
     return new Promise((resolve, reject) => {
       ws.onerror = (ev) => {
@@ -289,21 +324,11 @@ const listStore = {
       ws.onclose = () => {
         resolve();
       };
-      ws.onopen = () => {
-        tick(null);
-      };
-      ws.onmessage = (ev) => {
-        const data = ev.data;
-
-        if (!(data instanceof ArrayBuffer)) {
-          reject("received non-binary message");
-          ws.close();
-          return;
-        }
-
-        console.log(`received sync message (${data.byteLength} bytes)`);
-
-        tick(new Uint8Array(data));
+      ws.onopen = async () => {
+        // send protocol version
+        ws.send(new Uint8Array([1]));
+        await this.syncDocument(ws, Storage.MetaKeys.list_ids, documentList);
+        ws.close();
       };
     });
   },
