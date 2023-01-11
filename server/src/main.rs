@@ -1,14 +1,14 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Context, Result, bail};
 use automerge::{Automerge, ActorId};
 use axum::{
-    extract::{Path, State, WebSocketUpgrade, ws::{WebSocket, Message}},
+    extract::{State, WebSocketUpgrade, ws::{WebSocket, Message}},
     routing::{get, post},
     Router, response::Response,
 };
 use clap::{Parser, Subcommand};
-use tracing::info;
+use tracing::{error, info};
 use tracing_subscriber;
 
 mod device_id;
@@ -77,7 +77,7 @@ async fn main() -> Result<()> {
                 .route("/health", get(healthcheck_handler))
                 .route("/api/v1/device/register", post(device_register_handler))
                 .with_state(app_state)
-                .route("/api/v1/document/:id/sync", get(sync_handler))
+                .route("/api/v1/document/sync", get(sync_handler))
                 .layer(tower_http::trace::TraceLayer::new_for_http()
                     .on_request(())
                     .on_response(
@@ -109,44 +109,114 @@ async fn device_register_handler(State(state): State<Arc<AppState>>) -> String {
 
 const SERVER_ACTOR_ID: [u8; 1] = [0];
 
-async fn sync_handler(Path(doc_id): Path<String>, ws: WebSocketUpgrade) -> Response {
-
-    ws.on_upgrade(|socket| sync_socket_handler(doc_id, socket))
+async fn sync_handler(ws: WebSocketUpgrade) -> Response {
+    ws.on_upgrade(sync_socket_handler)
 }
 
-async fn sync_socket_handler(doc_id: String, mut socket: WebSocket) {
+async fn receive_binary_message(socket: &mut WebSocket) -> Result<Option<Vec<u8>>> {
+    let msg = match socket.recv().await {
+        Some(Ok(msg)) => msg,
+        Some(Err(e)) => { return Err(e.into()); },
+        None => { return Ok(None); }
+    };
+
+    match msg {
+        Message::Binary(x) => Ok(Some(x)),
+        Message::Close(_) => Ok(None),
+        _ => {
+            // ignore error here, this is a message sent just before closing the connection
+            _ = socket.send(r#"{"error": "invalid message type"}"#.into()).await;
+            bail!("received invalid message type {:?}", msg);
+        },
+    }
+}
+
+async fn sync_doc(socket: &mut WebSocket) -> Result<Automerge> {
     let actor_id = ActorId::from(&SERVER_ACTOR_ID);
     let mut doc = Automerge::new().with_actor(actor_id);
     let mut sync_state = automerge::sync::State::new();
 
-    while let Some(msg) = socket.recv().await {
-        let msg = if let Ok(msg) = msg {
-            msg
-        } else {
-            // client disconnected
-            return;
+    loop {
+        let payload = match receive_binary_message(socket).await {
+            Err(e) => { return Err(e); },
+            Ok(None) => { bail!("socket closed before sync was done"); }, // socket closed before receiving proto version
+            Ok(Some(data)) => data,
         };
 
-        let payload = match msg {
-            Message::Binary(x) => x,
-            _ => {
-                // ignore error here, this is a message sent just before closing the connection
-                _ = socket.send(r#"{"error": "invalid message type"}"#.into()).await;
+        info!("received sync message ({} bytes)", payload.len());
+
+        if payload.len() > 0 {
+            let message = match automerge::sync::Message::decode(&payload) {
+                Err(_) => { bail!("error decoding sync message"); }
+                Ok(msg) => msg,
+            };
+
+            if let Err(_) = doc.receive_sync_message(&mut sync_state, message) {
+                bail!("error applying sync message");
+            }
+        }
+
+        let reply = if let Some(message) = doc.generate_sync_message(&mut sync_state) {
+            let res = message.encode();
+            info!("sending sync reply ({} bytes)", res.len());
+            res
+        } else {
+            info!("no more sync messages to send");
+            vec!()
+        };
+
+        let done = payload.len() == 0 && reply.len() == 0;
+
+        if let Err(e) = socket.send(reply.into()).await {
+            bail!("error sending sync message: {:?}", e);
+        }
+
+        if done {
+            info!("peer is done and we're done");
+            return Ok(doc);
+        }
+    }
+}
+
+async fn sync_socket_handler(mut socket: WebSocket) {
+    match receive_binary_message(&mut socket).await {
+        Err(e) => {
+            error!("error receiving proto version: {:#}", e);
+            return;
+        },
+        Ok(None) => { return; }, // socket closed before receiving proto version
+        Ok(Some(data)) => {
+            if data.len() != 1 || data[0] != 1 {
+                error!("received invalid proto version (len: {})", data.len());
                 return;
+            }
+        },
+    };
+
+    loop {
+        let doc_id = match receive_binary_message(&mut socket).await {
+            Err(e) => {
+                error!("error receiving doc id: {:#}", e);
+                return;
+            },
+            Ok(None) => {
+                info!("no more documents to sync");
+                return;
+            },
+            Ok(Some(data)) => {
+                String::from_utf8_lossy(&data).into_owned()
             },
         };
 
-        let message = match automerge::sync::Message::decode(&payload) {
-            Err(_) => {
-                _ = socket.send(r#"{"error": "error decoding sync message"}"#.into()).await;
-                return;
-            }
-            Ok(msg) => msg,
-        };
+        info!("starting sync for document {}", doc_id);
 
-        if let Err(_) = doc.receive_sync_message(&mut sync_state, message) {
-            _ = socket.send(r#"{"error": "error receiving sync message"}"#.into()).await;
-            return;
+        match sync_doc(&mut socket).await {
+            Ok(doc) => {
+                info!("sync done, result: {:?}", doc);
+            },
+            Err(e) => {
+                error!("sync failed: {}", e);
+            },
         }
     }
 }
