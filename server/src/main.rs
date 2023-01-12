@@ -15,6 +15,8 @@ use tracing_subscriber;
 mod device_id;
 use device_id::DeviceID;
 
+mod liststore;
+
 #[derive(Parser)]
 #[clap(author, version, about = "Listogether sync server", long_about = None)]
 #[clap(propagate_version = true)]
@@ -37,11 +39,16 @@ enum Commands {
         /// Key used to sign device IDs (so they can't be forged)
         #[arg(long, env = "ID_SIGNING_KEY")]
         id_signing_key: String,
+
+        /// Base directory where lists are stored
+        #[arg(long)]
+        lists_dir: String,
     },
 }
 
 struct AppState {
     id_signing_key: device_id::SigningKey,
+    list_store: Box<dyn liststore::ListStore + Send + Sync>,
 }
 
 #[tokio::main]
@@ -66,6 +73,7 @@ async fn main() -> Result<()> {
         Commands::Serve {
             listen_address,
             id_signing_key,
+            lists_dir,
         } => {
             let listen_address: SocketAddr = listen_address
                 .parse()
@@ -73,7 +81,10 @@ async fn main() -> Result<()> {
             let id_signing_key = device_id::SigningKey::from_string(&id_signing_key)
                 .context("error parsing ID signing key")?;
 
-            let app_state = Arc::new(AppState { id_signing_key });
+            let app_state = Arc::new(AppState{
+                id_signing_key,
+                list_store: Box::new(liststore::FSStore::new(&lists_dir)),
+            });
 
             let app = Router::new()
                 .route("/health", get(healthcheck_handler))
@@ -143,9 +154,9 @@ async fn receive_binary_message(socket: &mut WebSocket) -> Result<Option<Vec<u8>
     }
 }
 
-async fn sync_doc(socket: &mut WebSocket, expected_author_id: &[u8]) -> Result<Automerge> {
+async fn sync_doc(doc: &mut Automerge, socket: &mut WebSocket, expected_author_id: &[u8]) -> Result<()> {
     let actor_id = ActorId::from(&SERVER_ACTOR_ID);
-    let mut doc = Automerge::new().with_actor(actor_id);
+    let doc = doc.set_actor(actor_id);
     let mut sync_state = automerge::sync::State::new();
 
     loop {
@@ -191,7 +202,7 @@ async fn sync_doc(socket: &mut WebSocket, expected_author_id: &[u8]) -> Result<A
 
         if done {
             info!("peer is done and we're done");
-            return Ok(doc);
+            return Ok(());
         }
     }
 }
@@ -247,16 +258,57 @@ async fn sync_socket_handler(state: Arc<AppState>, mut socket: WebSocket) {
             },
         };
 
-        info!("starting sync for document {}", doc_id);
+        let mut doc = {
+            let state = Arc::clone(&state);
+            let doc_id = doc_id.clone();
 
-        match sync_doc(&mut socket, device_id.raw()).await {
-            Ok(doc) => {
+            match tokio::task::spawn_blocking(move || {
+                state.list_store.load(&doc_id)
+            }).await {
+                Err(e) => {
+                    error!("list store panicked while opening document: {:#}", e);
+                    return;
+                },
+                Ok(Err(e)) => {
+                    error!("error opening document: {:#}", e);
+                    return;
+                }
+                Ok(Ok(doc)) => doc,
+            }
+        }.unwrap_or_else(|| Automerge::new());
+
+        info!("starting sync for document {}", &doc_id);
+
+        match sync_doc(&mut doc, &mut socket, device_id.raw()).await {
+            Ok(_) => {
                 info!("sync done, result: {:?}", doc);
             },
             Err(e) => {
                 error!("sync failed: {}", e);
                 return;
             },
+        };
+
+        {
+            let state = Arc::clone(&state);
+            let doc_id = doc_id.clone();
+
+            match tokio::task::spawn_blocking(move || {
+                state.list_store.save(&doc_id, &mut doc)
+            }).await {
+                Err(e) => {
+                    error!("list store panicked while saving document: {:#}", e);
+                    return;
+                },
+                Ok(Err(e)) => {
+                    error!("error saving document: {:#}", e);
+                    return;
+                }
+                Ok(Ok(_)) => {
+                    info!("saved synchronized document");
+                },
+            }
         }
+
     }
 }
