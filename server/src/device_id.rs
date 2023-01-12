@@ -43,7 +43,19 @@ impl DeviceID {
     }
 
     pub fn to_string(&self) -> String {
-        base64::encode_config(&self.0, base64::URL_SAFE_NO_PAD)
+        DeviceID::encode(&self.0)
+    }
+
+    pub fn raw<'a>(&'a self) -> &'a[u8] {
+        &self.0[SIGNATURE_LEN..]
+    }
+
+    pub fn signature<'a>(&'a self) -> &'a[u8] {
+        &self.0[..SIGNATURE_LEN]
+    }
+
+    pub fn encode(data: &[u8]) -> String {
+        base64::encode_config(data, base64::URL_SAFE_NO_PAD)
     }
 }
 

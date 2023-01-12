@@ -8,10 +8,12 @@ use axum::{
     Router, response::Response,
 };
 use clap::{Parser, Subcommand};
+use serde::Serialize;
 use tracing::{error, info};
 use tracing_subscriber;
 
 mod device_id;
+use device_id::DeviceID;
 
 #[derive(Parser)]
 #[clap(author, version, about = "Listogether sync server", long_about = None)]
@@ -76,8 +78,8 @@ async fn main() -> Result<()> {
             let app = Router::new()
                 .route("/health", get(healthcheck_handler))
                 .route("/api/v1/device/register", post(device_register_handler))
-                .with_state(app_state)
                 .route("/api/v1/document/sync", get(sync_handler))
+                .with_state(app_state)
                 .layer(tower_http::trace::TraceLayer::new_for_http()
                     .on_request(())
                     .on_response(
@@ -103,14 +105,24 @@ async fn healthcheck_handler() -> &'static str {
     "OK"
 }
 
+#[derive(Serialize)]
+struct DeviceRegisterResult {
+    id: String,
+    raw: String, 
+}
+
 async fn device_register_handler(State(state): State<Arc<AppState>>) -> String {
-    device_id::DeviceID::new(&state.id_signing_key).to_string()
+    let id = DeviceID::new(&state.id_signing_key);
+    serde_json::to_string(&DeviceRegisterResult{
+        id: id.to_string(),
+        raw: DeviceID::encode(id.raw()),
+    }).unwrap()
 }
 
 const SERVER_ACTOR_ID: [u8; 1] = [0];
 
-async fn sync_handler(ws: WebSocketUpgrade) -> Response {
-    ws.on_upgrade(sync_socket_handler)
+async fn sync_handler(State(state): State<Arc<AppState>>, ws: WebSocketUpgrade) -> Response {
+    ws.on_upgrade(|socket| sync_socket_handler(state, socket))
 }
 
 async fn receive_binary_message(socket: &mut WebSocket) -> Result<Option<Vec<u8>>> {
@@ -131,7 +143,7 @@ async fn receive_binary_message(socket: &mut WebSocket) -> Result<Option<Vec<u8>
     }
 }
 
-async fn sync_doc(socket: &mut WebSocket) -> Result<Automerge> {
+async fn sync_doc(socket: &mut WebSocket, expected_author_id: &[u8]) -> Result<Automerge> {
     let actor_id = ActorId::from(&SERVER_ACTOR_ID);
     let mut doc = Automerge::new().with_actor(actor_id);
     let mut sync_state = automerge::sync::State::new();
@@ -150,6 +162,12 @@ async fn sync_doc(socket: &mut WebSocket) -> Result<Automerge> {
                 Err(_) => { bail!("error decoding sync message"); }
                 Ok(msg) => msg,
             };
+
+            for change in &message.changes {
+                if change.actor_id().to_bytes() != expected_author_id {
+                    bail!("unexpected actor ID {}, expected {}", change.actor_id(), hex::encode(expected_author_id));
+                }
+            }
 
             if let Err(_) = doc.receive_sync_message(&mut sync_state, message) {
                 bail!("error applying sync message");
@@ -178,7 +196,7 @@ async fn sync_doc(socket: &mut WebSocket) -> Result<Automerge> {
     }
 }
 
-async fn sync_socket_handler(mut socket: WebSocket) {
+async fn sync_socket_handler(state: Arc<AppState>, mut socket: WebSocket) {
     match receive_binary_message(&mut socket).await {
         Err(e) => {
             error!("error receiving proto version: {:#}", e);
@@ -192,6 +210,27 @@ async fn sync_socket_handler(mut socket: WebSocket) {
             }
         },
     };
+
+    let device_id_str = match receive_binary_message(&mut socket).await {
+        Err(e) => {
+            error!("error receiving device ID: {:#}", e);
+            return;
+        },
+        Ok(None) => { return; }, // socket closed before receiving device ID
+        Ok(Some(data)) => {
+            String::from_utf8_lossy(&data).into_owned()
+        },
+    };
+
+    let device_id = match DeviceID::from_string(&state.id_signing_key, &device_id_str) {
+        Err(e) => {
+            error!("invalid device ID {}: {:#}", &device_id_str, e);
+            return;
+        },
+        Ok(id) => id,
+    };
+
+    info!("remote device ID is {}", device_id.to_string());
 
     loop {
         let doc_id = match receive_binary_message(&mut socket).await {
@@ -210,12 +249,13 @@ async fn sync_socket_handler(mut socket: WebSocket) {
 
         info!("starting sync for document {}", doc_id);
 
-        match sync_doc(&mut socket).await {
+        match sync_doc(&mut socket, device_id.raw()).await {
             Ok(doc) => {
                 info!("sync done, result: {:?}", doc);
             },
             Err(e) => {
                 error!("sync failed: {}", e);
+                return;
             },
         }
     }

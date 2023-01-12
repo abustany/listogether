@@ -2,6 +2,7 @@ import * as Automerge from "@automerge/automerge";
 import { ParentProps, createContext, useContext, createSignal, createResource } from "solid-js";
 import { v4 as uuidv4 } from "uuid";
 import { DBSchema, IDBPDatabase, openDB, StoreNames } from "idb";
+import { toByteArray as decodeBase64 } from "base64-js";
 
 import { List, ListChange } from "./list-schema";
 
@@ -60,7 +61,7 @@ function applyChange(doc: List, c: ListChange): void {
 
 const unixTimestamp = () => Math.floor(Date.now() / 1000);
 
-async function getDeviceId(): Promise<string> {
+async function getDeviceId(): Promise<DeviceID> {
   let deviceId = await storage.loadDeviceId();
   if (deviceId) return deviceId;
 
@@ -72,10 +73,15 @@ async function getDeviceId(): Promise<string> {
     throw new Error(`unexpected HTTP status ${res.status}`);
   }
 
-  deviceId = await res.text();
+  deviceId = (await res.json()) as DeviceID;
   await storage.saveDeviceId(deviceId);
 
   return deviceId;
+}
+
+interface DeviceID {
+  id: string;
+  raw: string;
 }
 
 class Storage {
@@ -133,12 +139,12 @@ class Storage {
     return await this.loadDocFromStore(Storage.MetaStore, Storage.MetaKeys.list_ids);
   }
 
-  async loadDeviceId(): Promise<string | null> {
+  async loadDeviceId(): Promise<DeviceID | null> {
     const val = await (await this.db).get(Storage.MetaStore, Storage.MetaKeys.device_id);
-    return val ? (val as string) : null;
+    return val ? (val as DeviceID) : null;
   }
 
-  async saveDeviceId(id: string): Promise<void> {
+  async saveDeviceId(id: DeviceID): Promise<void> {
     (await this.db).put(Storage.MetaStore, id, Storage.MetaKeys.device_id);
   }
 }
@@ -163,15 +169,38 @@ namespace Storage {
   }
 }
 
+function str2uint8Array(s: string): Uint8Array {
+  return Uint8Array.from(s.split("").map((x) => x.charCodeAt(0)));
+}
+
+function rawDeviceIdToHex(id: string): string {
+  while (id.length % 4 !== 0) id += "="; // base64-js requires padding to be present
+
+  const data = decodeBase64(id);
+  let res = "";
+
+  for (const x of data) {
+    res += x.toString(16);
+  }
+
+  return res;
+}
+
 const storage = new Storage();
 
 const listStore = {
   async __loadListIds(): Promise<Automerge.Doc<ListIds>> {
+    const deviceId = await getDeviceId();
+
     return (
       (await storage.loadListIds()) ??
-      Automerge.change(Automerge.init<ListIds>(), { message: "Initialize id list", time: unixTimestamp() }, (x) => {
-        x.ids = [];
-      })
+      Automerge.change(
+        Automerge.init<ListIds>({ actor: rawDeviceIdToHex(deviceId.raw) }),
+        { message: "Initialize id list", time: unixTimestamp() },
+        (x) => {
+          x.ids = [];
+        },
+      )
     );
   },
 
@@ -198,8 +227,9 @@ const listStore = {
   },
 
   async addList(name: string): Promise<List> {
+    const deviceId = await getDeviceId();
     const l = Automerge.change(
-      Automerge.init<List>(),
+      Automerge.init<List>({ actor: rawDeviceIdToHex(deviceId.raw) }),
       { message: `Create list ${name}`, time: unixTimestamp() },
       (doc) => {
         doc.id = uuidv4();
@@ -299,8 +329,7 @@ const listStore = {
       ws.addEventListener("message", onMessage);
 
       // send the document ID
-      const binaryDocId = Uint8Array.from(docId.split("").map((x) => x.charCodeAt(0)));
-      ws.send(binaryDocId);
+      ws.send(str2uint8Array(docId));
 
       // start the sync
       tick(null);
@@ -308,7 +337,7 @@ const listStore = {
   },
   async sync(): Promise<void> {
     const deviceId = await getDeviceId();
-    console.log(`device ID is ${deviceId}`);
+    console.log(`device ID is ${deviceId.raw}`);
 
     const ws = new WebSocket(`ws://${window.location.host}/api/v1/document/sync`);
     ws.binaryType = "arraybuffer";
@@ -327,6 +356,7 @@ const listStore = {
       ws.onopen = async () => {
         // send protocol version
         ws.send(new Uint8Array([1]));
+        ws.send(str2uint8Array(deviceId.id));
         await this.syncDocument(ws, Storage.MetaKeys.list_ids, documentList);
         ws.close();
       };
@@ -370,9 +400,14 @@ export function ListStoreProvider(props: ParentProps) {
     },
     sync(): void {
       setIsSynchronizing(true);
-      listStore.sync().finally(() => {
-        setIsSynchronizing(false);
-      });
+      listStore
+        .sync()
+        .catch((e) => {
+          console.error("sync failed", e);
+        })
+        .finally(() => {
+          setIsSynchronizing(false);
+        });
     },
     isSynchronizing,
   };
