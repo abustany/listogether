@@ -154,7 +154,7 @@ async fn receive_binary_message(socket: &mut WebSocket) -> Result<Option<Vec<u8>
     }
 }
 
-async fn sync_doc(state: Arc<AppState>, socket: &mut WebSocket, expected_author_id: &[u8]) -> Result<Option<Automerge>> {
+async fn sync_doc(state: Arc<AppState>, socket: &mut WebSocket, expected_author_id: &ActorId) -> Result<Option<Automerge>> {
     let actor_id = ActorId::from(&SERVER_ACTOR_ID);
     let mut sync_state = automerge::sync::State::new();
 
@@ -187,8 +187,8 @@ async fn sync_doc(state: Arc<AppState>, socket: &mut WebSocket, expected_author_
             let message = automerge::sync::Message::decode(&payload).context("error decoding sync message")?;
 
             for change in &message.changes {
-                if change.actor_id().to_bytes() != expected_author_id {
-                    bail!("unexpected actor ID {}, expected {}", change.actor_id(), hex::encode(expected_author_id));
+                if change.actor_id() != expected_author_id {
+                    bail!("unexpected actor ID {}, expected {}", change.actor_id(), expected_author_id);
                 }
             }
 
@@ -263,8 +263,10 @@ async fn sync_socket_handler(state: Arc<AppState>, mut socket: WebSocket) {
         Ok(Some(id)) => id,
     };
 
+    let expected_actor_id = ActorId::from(device_id.raw());
+
     loop {
-        match sync_doc(Arc::clone(&state), &mut socket, device_id.raw()).await {
+        match sync_doc(Arc::clone(&state), &mut socket, &expected_actor_id).await {
             Err(e) => {
                 error!("sync failed: {}", e);
                 return;

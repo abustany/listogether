@@ -624,7 +624,6 @@ dependencies = [
  "base64",
  "clap",
  "ecdsa",
- "hex",
  "hyper",
  "p256",
  "rand",
