@@ -6,17 +6,8 @@ import { toByteArray as decodeBase64 } from "base64-js";
 
 import { List, ListChange } from "./list-schema";
 
-interface ListStore {
-  getLists(): Readonly<List>[];
-  addList(name: string): Promise<string>;
-  deleteList(id: string): Promise<void>;
-  updateList(listId: string, changes: ListChange[]): Promise<void>;
-  sync(): void;
-  isSynchronizing(): boolean;
-}
-
 interface ListIds {
-  ids: string[];
+  ids?: string[];
 }
 
 function describeChange(c: ListChange): string {
@@ -112,20 +103,21 @@ class Storage {
   private async loadDocFromStore<T>(
     store: StoreNames<Storage.Schema>,
     docId: string,
+    actor: Automerge.ActorId,
   ): Promise<Automerge.Doc<T> | null> {
     const data = await (await this.db).get(store, docId);
     if (!data) return null;
-    return Automerge.load<T>(data as Uint8Array);
+    return Automerge.load<T>(data as Uint8Array, { actor });
   }
 
-  async loadDoc<T>(docId: string): Promise<Automerge.Doc<T> | null> {
-    return this.loadDocFromStore(Storage.DocStore, docId);
+  async loadDoc<T>(docId: string, actor: Automerge.ActorId): Promise<Automerge.Doc<T> | null> {
+    return this.loadDocFromStore(Storage.DocStore, docId, actor);
   }
 
-  async loadDocs<T>(docIds: string[]): Promise<(Automerge.Doc<T> | null)[]> {
+  async loadDocs<T>(docIds: string[], actor: Automerge.ActorId): Promise<(Automerge.Doc<T> | null)[]> {
     const tx = (await this.db).transaction(Storage.DocStore, "readonly");
     const docs = await Promise.all(docIds.map((id) => tx.store.get(id)));
-    return docs.map((data) => (data ? Automerge.load<T>(data) : null));
+    return docs.map((data) => (data ? Automerge.load<T>(data, { actor }) : null));
   }
 
   async deleteDoc(docId: string): Promise<void> {
@@ -136,8 +128,8 @@ class Storage {
     return this.saveDocToStore(Storage.MetaStore, Storage.MetaKeys.list_ids, ids);
   }
 
-  async loadListIds(): Promise<Automerge.Doc<ListIds> | null> {
-    return await this.loadDocFromStore(Storage.MetaStore, Storage.MetaKeys.list_ids);
+  async loadListIds(actor: Automerge.ActorId): Promise<Automerge.Doc<ListIds> | null> {
+    return await this.loadDocFromStore(Storage.MetaStore, Storage.MetaKeys.list_ids, actor);
   }
 
   async loadDeviceId(): Promise<DeviceID | null> {
@@ -207,48 +199,58 @@ function rawDeviceIdToHex(id: string): string {
 
 const storage = new Storage();
 
-const listStore = {
-  async __loadListIds(): Promise<Automerge.Doc<ListIds>> {
+function initDoc<T>(deviceId: DeviceID): Automerge.Doc<T> {
+  return Automerge.init<T>({ actor: rawDeviceIdToHex(deviceId.raw) });
+}
+
+class ListStore {
+  private cachedActorId: Promise<Automerge.ActorId> | undefined;
+
+  private getActorId(): Promise<Automerge.ActorId> {
+    if (!this.cachedActorId) {
+      this.cachedActorId = getDeviceId().then((id) => rawDeviceIdToHex(id.raw));
+    }
+
+    return this.cachedActorId;
+  }
+
+  private async loadListIds(): Promise<Automerge.Doc<ListIds>> {
     const deviceId = await getDeviceId();
+    return (await storage.loadListIds(await this.getActorId())) ?? initDoc<ListIds>(deviceId);
+  }
 
-    return (
-      (await storage.loadListIds()) ??
-      Automerge.change(
-        Automerge.init<ListIds>({ actor: rawDeviceIdToHex(deviceId.raw) }),
-        { message: "Initialize id list", time: unixTimestamp() },
-        (x) => {
-          x.ids = [];
-        },
-      )
-    );
-  },
-
-  async __updateListIds(listIds: Automerge.Doc<ListIds>, message: string, f: (ids: string[]) => void): Promise<void> {
+  private async updateListIds(
+    listIds: Automerge.Doc<ListIds>,
+    message: string,
+    f: (ids: string[]) => void,
+  ): Promise<void> {
     return storage.saveListIds(
       Automerge.change(listIds, { message, time: unixTimestamp() }, (x) => {
-        f(x.ids);
+        const listIds = x.ids ?? [];
+        f(listIds);
+        x.ids = listIds;
       }),
     );
-  },
+  }
 
   async loadLists(): Promise<List[]> {
     function listExists(l: List | null): l is List {
       return l !== null;
     }
 
-    const listIds = (await this.__loadListIds()).ids;
+    const listIds = (await this.loadListIds()).ids ?? [];
 
-    return (await storage.loadDocs<List>(listIds)).filter(listExists);
-  },
+    return (await storage.loadDocs<List>(listIds, await this.getActorId())).filter(listExists);
+  }
 
   async saveList(l: List): Promise<void> {
     return storage.saveDoc(l.id, l);
-  },
+  }
 
   async addList(name: string): Promise<List> {
     const deviceId = await getDeviceId();
     const l = Automerge.change(
-      Automerge.init<List>({ actor: rawDeviceIdToHex(deviceId.raw) }),
+      initDoc<List>(deviceId),
       { message: `Create list ${name}`, time: unixTimestamp() },
       (doc) => {
         doc.id = uuidv4();
@@ -257,22 +259,22 @@ const listStore = {
       },
     );
     await this.saveList(l);
-    await this.__updateListIds(await this.__loadListIds(), `Add list ${l.id}`, (ids) => ids.push(l.id));
+    await this.updateListIds(await this.loadListIds(), `Add list ${l.id}`, (ids) => ids.push(l.id));
     return l;
-  },
+  }
 
   async deleteList(id: string): Promise<void> {
     await storage.deleteDoc(id);
 
-    const listIds = await this.__loadListIds();
-    const idx = listIds.ids.findIndex((x) => x === id);
+    const listIds = await this.loadListIds();
+    const idx = (listIds.ids ?? []).findIndex((x) => x === id);
     if (idx === -1) return;
 
-    await this.__updateListIds(listIds, `Remove list ${id}`, (ids) => ids.splice(idx, 1));
-  },
+    await this.updateListIds(listIds, `Remove list ${id}`, (ids) => ids.splice(idx, 1));
+  }
 
   async updateList(listId: string, changes: ListChange[]): Promise<List> {
-    const list = await storage.loadDoc<List>(listId);
+    const list = await storage.loadDoc<List>(listId, await this.getActorId());
     if (list === null) throw new Error(`list ${listId} does not exist`);
     if (changes.length === 0) return list;
 
@@ -291,8 +293,8 @@ const listStore = {
     await this.saveList(updated);
 
     return updated;
-  },
-  async syncDocument(ws: WebSocket, docId: string, doc: Automerge.Doc<unknown>): Promise<void> {
+  }
+  async syncDocument<T>(ws: WebSocket, docId: string, doc: Automerge.Doc<T>): Promise<Automerge.Doc<T>> {
     let syncState = (await storage.loadSyncState(docId)) ?? Automerge.initSyncState();
 
     return new Promise((resolve, reject) => {
@@ -307,7 +309,7 @@ const listStore = {
           ws.removeEventListener("message", onMessage);
           storage
             .saveSyncState(docId, syncState)
-            .then((_) => resolve(undefined))
+            .then((_) => resolve(doc))
             .catch(reject);
           return;
         }
@@ -352,17 +354,16 @@ const listStore = {
       // start the sync
       tick(null);
     });
-  },
+  }
   async sync(): Promise<void> {
     const deviceId = await getDeviceId();
-    console.log(`device ID is ${deviceId.raw}`);
+    console.log(`device ID is ${deviceId.raw} (${rawDeviceIdToHex(deviceId.raw)})`);
 
     const ws = new WebSocket(`ws://${window.location.host}/api/v1/document/sync`);
     ws.binaryType = "arraybuffer";
 
     // First sync the document list
-    const documentList = await storage.loadListIds();
-    if (!documentList) return;
+    let listIdsDoc = await this.loadListIds();
 
     return new Promise((resolve, reject) => {
       ws.onerror = (ev) => {
@@ -375,21 +376,46 @@ const listStore = {
         // send protocol version
         ws.send(new Uint8Array([1]));
         ws.send(str2uint8Array(deviceId.id));
-        await this.syncDocument(ws, Storage.MetaKeys.list_ids, documentList);
+
+        // sync list ids first so we get notified of potential new lists
+        try {
+          console.log("synchronizing list ids");
+          listIdsDoc = await this.syncDocument(ws, rawDeviceIdToHex(deviceId.raw), listIdsDoc);
+          await storage.saveListIds(listIdsDoc);
+        } catch (e) {
+          console.error(`error synchronizing list ids: ${e}`);
+        }
+
+        // sync all docs
+        for (const docId of listIdsDoc.ids ?? []) {
+          try {
+            console.log(`synchronizing document ${docId}`);
+            let doc = (await storage.loadDoc(docId, await this.getActorId())) ?? initDoc<List>(deviceId);
+            doc = await this.syncDocument(ws, docId, doc);
+            await storage.saveDoc(docId, doc);
+          } catch (e) {
+            console.error(`error synchronizing document ${docId}: ${e}`);
+          }
+        }
+
         ws.close();
       };
     });
-  },
-};
+  }
+}
 
-export const ListStoreContext = createContext<ListStore>({
-  getLists: () => [],
-  addList: (_name: string) => Promise.resolve(""),
-  deleteList: (_id: string) => Promise.resolve(undefined),
-  updateList: (_listId: string, _changes: ListChange[]) => Promise.resolve(undefined),
-  sync: () => {},
-  isSynchronizing: () => false,
-});
+const listStore = new ListStore();
+
+interface IListStoreContext {
+  getLists(): Readonly<List>[];
+  addList(name: string): Promise<string>;
+  deleteList(id: string): Promise<void>;
+  updateList(listId: string, changes: ListChange[]): Promise<void>;
+  sync(): void;
+  isSynchronizing(): boolean;
+}
+
+export const ListStoreContext = createContext<IListStoreContext | null>(null);
 
 export function ListStoreProvider(props: ParentProps) {
   const [getLists, { mutate: mutateLists, refetch: refetchLists }] = createResource<List[]>(
@@ -397,7 +423,7 @@ export function ListStoreProvider(props: ParentProps) {
     { initialValue: [] },
   );
   const [isSynchronizing, setIsSynchronizing] = createSignal<boolean>(false);
-  const p: ListStore = {
+  const p: IListStoreContext = {
     getLists,
     async addList(name: string): Promise<string> {
       const l = await listStore.addList(name);
@@ -425,6 +451,7 @@ export function ListStoreProvider(props: ParentProps) {
         })
         .finally(() => {
           setIsSynchronizing(false);
+          refetchLists();
         });
     },
     isSynchronizing,
@@ -433,4 +460,4 @@ export function ListStoreProvider(props: ParentProps) {
   return <ListStoreContext.Provider value={p}>{props.children}</ListStoreContext.Provider>;
 }
 
-export const useLists = () => useContext(ListStoreContext);
+export const useLists = () => useContext(ListStoreContext)!;
