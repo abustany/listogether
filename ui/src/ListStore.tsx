@@ -91,6 +91,7 @@ class Storage {
     this.db = openDB<Storage.Schema>("listogether", 1, {
       upgrade(database) {
         database.createObjectStore(Storage.DocStore, {});
+        database.createObjectStore(Storage.SyncState, {});
         database.createObjectStore(Storage.MetaStore, {});
       },
     });
@@ -147,10 +148,21 @@ class Storage {
   async saveDeviceId(id: DeviceID): Promise<void> {
     (await this.db).put(Storage.MetaStore, id, Storage.MetaKeys.device_id);
   }
+
+  async loadSyncState(docId: string): Promise<Automerge.SyncState | null> {
+    const data = await (await this.db).get(Storage.SyncState, docId);
+    if (!data) return null;
+    return Automerge.decodeSyncState(data as Uint8Array);
+  }
+
+  async saveSyncState(docId: string, syncState: Automerge.SyncState) {
+    await (await this.db).put(Storage.SyncState, Automerge.encodeSyncState(syncState), docId);
+  }
 }
 
 namespace Storage {
   export const DocStore = "docs";
+  export const SyncState = "sync_state";
   export const MetaStore = "meta";
   export const MetaKeys = {
     device_id: "device_id",
@@ -159,6 +171,10 @@ namespace Storage {
 
   export interface Schema extends DBSchema {
     [DocStore]: {
+      key: string;
+      value: Uint8Array;
+    };
+    [SyncState]: {
       key: string;
       value: Uint8Array;
     };
@@ -286,7 +302,10 @@ const listStore = {
           // everyone is done
           console.log("received empty message, sync done");
           ws.removeEventListener("message", onMessage);
-          resolve(undefined);
+          storage
+            .saveSyncState(docId, syncState)
+            .then((_) => resolve(undefined))
+            .catch(reject);
           return;
         }
 
