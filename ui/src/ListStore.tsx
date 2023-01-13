@@ -274,32 +274,28 @@ const listStore = {
     return updated;
   },
   async syncDocument(ws: WebSocket, docId: string, doc: Automerge.Doc<unknown>): Promise<void> {
-    let syncState = Automerge.initSyncState();
+    let syncState = (await storage.loadSyncState(docId)) ?? Automerge.initSyncState();
 
     return new Promise((resolve, reject) => {
       let onMessage: (ev: MessageEvent) => void;
 
       const unsafeTick = (incomingMessage: Uint8Array | null) => {
-        let reply: Uint8Array | null;
         const otherIsFinished = incomingMessage !== null && incomingMessage.byteLength === 0;
 
-        if (incomingMessage !== null && incomingMessage.byteLength > 0) {
-          const [updatedDoc, nextSyncState] = Automerge.receiveSyncMessage(doc, syncState, incomingMessage);
-          doc = updatedDoc;
-          syncState = nextSyncState;
-        }
-
-        const [nextSyncState, syncMessage] = Automerge.generateSyncMessage(doc, syncState);
-        syncState = nextSyncState;
-        reply = syncMessage;
-
-        if (otherIsFinished && reply === null) {
+        if (otherIsFinished) {
           // everyone is done
-          console.log("received empty message and nothing to send, sync done");
+          console.log("received empty message, sync done");
           ws.removeEventListener("message", onMessage);
           resolve(undefined);
           return;
         }
+
+        if (incomingMessage !== null && incomingMessage.byteLength > 0) {
+          [doc, syncState] = Automerge.receiveSyncMessage(doc, syncState, incomingMessage);
+        }
+
+        let reply: Uint8Array | null;
+        [syncState, reply] = Automerge.generateSyncMessage(doc, syncState);
 
         const payload = reply?.buffer || new ArrayBuffer(0);
         console.log(`sending sync message (${payload.byteLength} bytes)`);

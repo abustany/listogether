@@ -206,12 +206,12 @@ async fn sync_doc(state: Arc<AppState>, socket: &mut WebSocket, expected_author_
             vec!()
         };
 
-        let done = payload.len() == 0 && reply.len() == 0;
+        let done = reply.len() == 0;
 
         socket.send(reply.into()).await.context("error sending sync message")?;
 
         if done {
-            info!("peer is done and we're done");
+            info!("we're done");
             break;
         }
     }
