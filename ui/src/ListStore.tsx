@@ -196,7 +196,10 @@ function rawDeviceIdToHex(id: string): string {
   let res = "";
 
   for (const x of data) {
-    res += x.toString(16);
+    const hex = x.toString(16);
+
+    if (hex.length === 1) res += "0";
+    res += hex;
   }
 
   return res;
