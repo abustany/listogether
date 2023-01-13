@@ -160,8 +160,7 @@ async fn sync_doc(state: Arc<AppState>, socket: &mut WebSocket, expected_author_
 
     let doc_id = match receive_binary_message(socket).await.context("error receiving doc id")? {
         None => { return Ok(None); },
-        Some(data) => String::from_utf8_lossy(&data).into_owned()
-        ,
+        Some(data) => String::from_utf8_lossy(&data).into_owned(),
     };
 
     info!("synchronizing document {}", &doc_id);
@@ -188,7 +187,7 @@ async fn sync_doc(state: Arc<AppState>, socket: &mut WebSocket, expected_author_
 
             for change in &message.changes {
                 if change.actor_id() != expected_author_id {
-                    bail!("unexpected actor ID {}, expected {}", change.actor_id(), expected_author_id);
+                    bail!("unexpected actor ID {} in change {}, expected {}", change.actor_id(), change.hash(), expected_author_id);
                 }
             }
 
