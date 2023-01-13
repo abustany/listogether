@@ -154,10 +154,25 @@ async fn receive_binary_message(socket: &mut WebSocket) -> Result<Option<Vec<u8>
     }
 }
 
-async fn sync_doc(doc: &mut Automerge, socket: &mut WebSocket, expected_author_id: &[u8]) -> Result<()> {
+async fn sync_doc(state: Arc<AppState>, socket: &mut WebSocket, expected_author_id: &[u8]) -> Result<Option<Automerge>> {
     let actor_id = ActorId::from(&SERVER_ACTOR_ID);
-    let doc = doc.set_actor(actor_id);
     let mut sync_state = automerge::sync::State::new();
+
+    let doc_id = match receive_binary_message(socket).await.context("error receiving doc id")? {
+        None => { return Ok(None); },
+        Some(data) => String::from_utf8_lossy(&data).into_owned()
+        ,
+    };
+
+    info!("synchronizing document {}", &doc_id);
+
+    let mut doc = {
+        let state = Arc::clone(&state);
+        let doc_id = doc_id.clone();
+        tokio::task::spawn_blocking(move || {
+            state.list_store.load(&doc_id)
+        }).await.context("panic while opening doc")?.context("error opening document")?
+    }.unwrap_or_else(|| Automerge::new()).with_actor(actor_id);
 
     loop {
         let payload = match receive_binary_message(socket).await {
@@ -169,10 +184,7 @@ async fn sync_doc(doc: &mut Automerge, socket: &mut WebSocket, expected_author_i
         info!("received sync message ({} bytes)", payload.len());
 
         if payload.len() > 0 {
-            let message = match automerge::sync::Message::decode(&payload) {
-                Err(_) => { bail!("error decoding sync message"); }
-                Ok(msg) => msg,
-            };
+            let message = automerge::sync::Message::decode(&payload).context("error decoding sync message")?;
 
             for change in &message.changes {
                 if change.actor_id().to_bytes() != expected_author_id {
@@ -196,119 +208,76 @@ async fn sync_doc(doc: &mut Automerge, socket: &mut WebSocket, expected_author_i
 
         let done = payload.len() == 0 && reply.len() == 0;
 
-        if let Err(e) = socket.send(reply.into()).await {
-            bail!("error sending sync message: {:?}", e);
-        }
+        socket.send(reply.into()).await.context("error sending sync message")?;
 
         if done {
             info!("peer is done and we're done");
-            return Ok(());
+            break;
         }
     }
+
+    {
+        let state = Arc::clone(&state);
+        let doc_id = doc_id.clone();
+        let mut doc = doc.clone();
+
+        tokio::task::spawn_blocking(move || {
+            state.list_store.save(&doc_id, &mut doc)
+        }).await.context("panic saving doc")?.context("error saving doc")?;
+    }
+
+    Ok(Some(doc))
 }
 
-async fn sync_socket_handler(state: Arc<AppState>, mut socket: WebSocket) {
-    match receive_binary_message(&mut socket).await {
-        Err(e) => {
-            error!("error receiving proto version: {:#}", e);
-            return;
-        },
-        Ok(None) => { return; }, // socket closed before receiving proto version
-        Ok(Some(data)) => {
+async fn receive_protocol_and_device_id(state: &AppState, socket: &mut WebSocket) -> Result<Option<device_id::DeviceID>> {
+    match receive_binary_message(socket).await.context("error receiving proto version")? {
+        None => { return Ok(None); }, // socket closed before receiving proto version
+        Some(data) => {
             if data.len() != 1 || data[0] != 1 {
-                error!("received invalid proto version (len: {})", data.len());
-                return;
+                bail!("received invalid proto version (len: {})", data.len());
             }
         },
     };
 
-    let device_id_str = match receive_binary_message(&mut socket).await {
-        Err(e) => {
-            error!("error receiving device ID: {:#}", e);
-            return;
-        },
-        Ok(None) => { return; }, // socket closed before receiving device ID
-        Ok(Some(data)) => {
+    let device_id_str = match receive_binary_message(socket).await.context("error receiving device ID")? {
+        None => { return Ok(None); }, // socket closed before receiving device ID
+        Some(data) => {
             String::from_utf8_lossy(&data).into_owned()
         },
     };
 
-    let device_id = match DeviceID::from_string(&state.id_signing_key, &device_id_str) {
-        Err(e) => {
-            error!("invalid device ID {}: {:#}", &device_id_str, e);
-            return;
-        },
-        Ok(id) => id,
-    };
+    let device_id = DeviceID::from_string(&state.id_signing_key, &device_id_str).context("error parsing device ID")?;
 
     info!("remote device ID is {}", device_id.to_string());
 
+    Ok(Some(device_id))
+}
+
+async fn sync_socket_handler(state: Arc<AppState>, mut socket: WebSocket) {
+    let device_id = match receive_protocol_and_device_id(&state, &mut socket).await {
+        Err(e) => {
+            error!("error initializing sync: {:#}", e);
+            return;
+        },
+        Ok(None) => { return; },
+        Ok(Some(id)) => id,
+    };
+
     loop {
-        let doc_id = match receive_binary_message(&mut socket).await {
+        match sync_doc(Arc::clone(&state), &mut socket, device_id.raw()).await {
             Err(e) => {
-                error!("error receiving doc id: {:#}", e);
+                error!("sync failed: {}", e);
                 return;
             },
             Ok(None) => {
                 info!("no more documents to sync");
                 return;
             },
-            Ok(Some(data)) => {
-                String::from_utf8_lossy(&data).into_owned()
-            },
-        };
-
-        let mut doc = {
-            let state = Arc::clone(&state);
-            let doc_id = doc_id.clone();
-
-            match tokio::task::spawn_blocking(move || {
-                state.list_store.load(&doc_id)
-            }).await {
-                Err(e) => {
-                    error!("list store panicked while opening document: {:#}", e);
-                    return;
-                },
-                Ok(Err(e)) => {
-                    error!("error opening document: {:#}", e);
-                    return;
-                }
-                Ok(Ok(doc)) => doc,
-            }
-        }.unwrap_or_else(|| Automerge::new());
-
-        info!("starting sync for document {}", &doc_id);
-
-        match sync_doc(&mut doc, &mut socket, device_id.raw()).await {
-            Ok(_) => {
+            Ok(Some(doc)) => {
                 info!("sync done, result: {:?}", doc);
             },
-            Err(e) => {
-                error!("sync failed: {}", e);
-                return;
-            },
         };
 
-        {
-            let state = Arc::clone(&state);
-            let doc_id = doc_id.clone();
-
-            match tokio::task::spawn_blocking(move || {
-                state.list_store.save(&doc_id, &mut doc)
-            }).await {
-                Err(e) => {
-                    error!("list store panicked while saving document: {:#}", e);
-                    return;
-                },
-                Ok(Err(e)) => {
-                    error!("error saving document: {:#}", e);
-                    return;
-                }
-                Ok(Ok(_)) => {
-                    info!("saved synchronized document");
-                },
-            }
-        }
 
     }
 }
