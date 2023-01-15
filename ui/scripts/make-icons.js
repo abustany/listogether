@@ -30,7 +30,7 @@ import { mergeProps, splitProps } from "solid-js";
 export interface IconProps {
   size?: string;
   color?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 };
 
 export const withDefaultIconProps = (p: IconProps) => splitProps(
