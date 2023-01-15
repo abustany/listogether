@@ -8,7 +8,9 @@ const ICONS = [
   "arrow-left",
   "plus",
   "refresh-cw",
-  "trash-2"
+  "share-2",
+  "trash-2",
+  "x"
 ];
 
 const kebabToCamelRe = /-(.)/g;
