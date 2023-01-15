@@ -8,6 +8,7 @@ use axum::{
     Router, response::Response,
 };
 use clap::{Parser, Subcommand};
+use multilock::MultiLock;
 use serde::Serialize;
 use tracing::{error, info};
 use tracing_subscriber;
@@ -16,6 +17,7 @@ mod device_id;
 use device_id::DeviceID;
 
 mod liststore;
+mod multilock;
 
 #[derive(Parser)]
 #[clap(author, version, about = "Listogether sync server", long_about = None)]
@@ -49,6 +51,7 @@ enum Commands {
 struct AppState {
     id_signing_key: device_id::SigningKey,
     list_store: Box<dyn liststore::ListStore + Send + Sync>,
+    doc_locks: MultiLock,
 }
 
 #[tokio::main]
@@ -84,6 +87,7 @@ async fn main() -> Result<()> {
             let app_state = Arc::new(AppState{
                 id_signing_key,
                 list_store: Box::new(liststore::FSStore::new(&lists_dir)),
+                doc_locks: MultiLock::new(),
             });
 
             let app = Router::new()
@@ -154,24 +158,16 @@ async fn receive_binary_message(socket: &mut WebSocket) -> Result<Option<Vec<u8>
     }
 }
 
-async fn sync_doc(state: Arc<AppState>, socket: &mut WebSocket, expected_author_id: &ActorId) -> Result<Option<Automerge>> {
+async fn sync_doc_locked(state: Arc<AppState>, socket: &mut WebSocket, doc_id: &str, expected_author_id: &ActorId) -> Result<Automerge> {
     let actor_id = ActorId::from(&SERVER_ACTOR_ID);
-    let mut sync_state = automerge::sync::State::new();
-
-    let doc_id = match receive_binary_message(socket).await.context("error receiving doc id")? {
-        None => { return Ok(None); },
-        Some(data) => String::from_utf8_lossy(&data).into_owned(),
-    };
-
-    info!("synchronizing document {}", &doc_id);
-
     let mut doc = {
         let state = Arc::clone(&state);
-        let doc_id = doc_id.clone();
+        let doc_id = doc_id.to_owned();
         tokio::task::spawn_blocking(move || {
             state.list_store.load(&doc_id)
         }).await.context("panic while opening doc")?.context("error opening document")?
     }.unwrap_or_else(|| Automerge::new()).with_actor(actor_id);
+    let mut sync_state = automerge::sync::State::new();
 
     loop {
         let payload = match receive_binary_message(socket).await {
@@ -217,7 +213,7 @@ async fn sync_doc(state: Arc<AppState>, socket: &mut WebSocket, expected_author_
 
     {
         let state = Arc::clone(&state);
-        let doc_id = doc_id.clone();
+        let doc_id = doc_id.to_owned();
         let mut doc = doc.clone();
 
         tokio::task::spawn_blocking(move || {
@@ -225,7 +221,22 @@ async fn sync_doc(state: Arc<AppState>, socket: &mut WebSocket, expected_author_
         }).await.context("panic saving doc")?.context("error saving doc")?;
     }
 
-    Ok(Some(doc))
+    Ok(doc)
+}
+
+async fn sync_doc(state: Arc<AppState>, socket: &mut WebSocket, expected_author_id: &ActorId) -> Result<Option<Automerge>> {
+    let doc_id = match receive_binary_message(socket).await.context("error receiving doc id")? {
+        None => { return Ok(None); },
+        Some(data) => String::from_utf8_lossy(&data).into_owned(),
+    };
+
+    info!("synchronizing document {}", &doc_id);
+
+    let doc = state.doc_locks.with_lock(&doc_id, || {
+        sync_doc_locked(Arc::clone(&state), socket, &doc_id, expected_author_id)
+    }).await;
+
+    Ok(Some(doc?))
 }
 
 async fn receive_protocol_and_device_id(state: &AppState, socket: &mut WebSocket) -> Result<Option<device_id::DeviceID>> {
