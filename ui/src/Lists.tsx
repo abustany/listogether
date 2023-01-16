@@ -83,7 +83,7 @@ const ShareModal: Component<{ listId: string; onClose: () => void }> = (props) =
           <div class={styles.ModalContent}>
             Share the following link to give read and write access to this list:
             <div class={styles.ListLink}>
-              {window.location.origin}/share/{props.listId}
+              {window.location.origin}/import/{props.listId}
             </div>
           </div>
         </div>
