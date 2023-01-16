@@ -1,0 +1,31 @@
+.Wrapper {
+  margin: 0;
+  padding: 1rem;
+  flex: 1 1 auto;
+  max-width: 40rem;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.Content {
+  background-color: white;
+  border-radius: 10px;
+  padding: 1rem;
+  text-align: center;
+}
+
+.Link {
+  border: 1px solid black;
+  padding: .4rem;
+  border-radius: 4px;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: .2rem;
+}
+
+.Link:hover {
+  background-color: #eee;
+}

@@ -5,6 +5,7 @@ import { Transition } from "solid-transition-group";
 import { List } from "./List";
 import { Lists } from "./Lists";
 import styles from "./App.module.css";
+import { Import } from "./Import";
 
 // We need an extra level of wrapping here to enable animations: the elements
 // that gets replaced must have an absolute position (ie not be in the flow) to
@@ -38,6 +39,14 @@ const App: Component = () => {
     <div class={styles.App}>
       <Transition name="route" {...transitions()}>
         <Routes>
+          <Route
+            path="/import/:id"
+            component={() => (
+              <RouteContainer>
+                <Import id={useParams().id} />
+              </RouteContainer>
+            )}
+          />
           <Route
             path="/:id"
             component={() => (

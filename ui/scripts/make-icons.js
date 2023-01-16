@@ -6,6 +6,7 @@ import * as path from "path";
 // Icons we want to generate.
 const ICONS = [
   "arrow-left",
+  "check",
   "plus",
   "refresh-cw",
   "share-2",

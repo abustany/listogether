@@ -355,51 +355,71 @@ class ListStore {
       tick(null);
     });
   }
-  async sync(): Promise<void> {
+  async withSyncSocket<T>(f: (deviceId: DeviceID, ws: WebSocket) => Promise<T>): Promise<T> {
     const deviceId = await getDeviceId();
     console.log(`device ID is ${deviceId.raw} (${rawDeviceIdToHex(deviceId.raw)})`);
 
     const ws = new WebSocket(`ws://${window.location.host}/api/v1/document/sync`);
     ws.binaryType = "arraybuffer";
 
-    // First sync the document list
-    let listIdsDoc = await this.loadListIds();
+    let res: T;
 
     return new Promise((resolve, reject) => {
       ws.onerror = (ev) => {
         reject(ev);
       };
       ws.onclose = () => {
-        resolve();
+        resolve(res);
       };
       ws.onopen = async () => {
         // send protocol version
         ws.send(new Uint8Array([1]));
         ws.send(str2uint8Array(deviceId.id));
 
-        // sync list ids first so we get notified of potential new lists
         try {
-          console.log("synchronizing list ids");
-          listIdsDoc = await this.syncDocument(ws, rawDeviceIdToHex(deviceId.raw), listIdsDoc);
-          await storage.saveListIds(listIdsDoc);
-        } catch (e) {
-          console.error(`error synchronizing list ids: ${e}`);
+          res = await f(deviceId, ws);
+        } finally {
+          ws.close();
         }
-
-        // sync all docs
-        for (const docId of listIdsDoc.ids ?? []) {
-          try {
-            console.log(`synchronizing document ${docId}`);
-            let doc = (await storage.loadDoc(docId, await this.getActorId())) ?? initDoc<List>(deviceId);
-            doc = await this.syncDocument(ws, docId, doc);
-            await storage.saveDoc(docId, doc);
-          } catch (e) {
-            console.error(`error synchronizing document ${docId}: ${e}`);
-          }
-        }
-
-        ws.close();
       };
+    });
+  }
+  async sync(): Promise<void> {
+    return this.withSyncSocket(async (deviceId, ws) => {
+      let listIdsDoc = await this.loadListIds();
+
+      // sync list ids first so we get notified of potential new lists
+      try {
+        console.log("synchronizing list ids");
+        listIdsDoc = await this.syncDocument(ws, rawDeviceIdToHex(deviceId.raw), listIdsDoc);
+        await storage.saveListIds(listIdsDoc);
+      } catch (e) {
+        console.error(`error synchronizing list ids: ${e}`);
+      }
+
+      // sync all docs
+      for (const docId of listIdsDoc.ids ?? []) {
+        try {
+          console.log(`synchronizing document ${docId}`);
+          let doc = (await storage.loadDoc(docId, await this.getActorId())) ?? initDoc<List>(deviceId);
+          doc = await this.syncDocument(ws, docId, doc);
+          await storage.saveDoc(docId, doc);
+        } catch (e) {
+          console.error(`error synchronizing document ${docId}: ${e}`);
+        }
+      }
+    });
+  }
+  async importList(docId: string): Promise<Automerge.Doc<List>> {
+    const doc = await storage.loadDoc<List>(docId, await this.getActorId());
+    if (doc) return doc;
+
+    return this.withSyncSocket(async (deviceId, ws) => {
+      const doc = await this.syncDocument(ws, docId, initDoc<List>(deviceId));
+      await storage.saveDoc(docId, doc);
+      await this.updateListIds(await this.loadListIds(), `Add list ${doc.id}`, (ids) => ids.push(doc.id));
+
+      return doc;
     });
   }
 }
@@ -412,6 +432,7 @@ interface IListStoreContext {
   deleteList(id: string): Promise<void>;
   updateList(listId: string, changes: ListChange[]): Promise<void>;
   sync(): void;
+  importList(docId: string): Promise<List>;
   isSynchronizing(): boolean;
 }
 
@@ -453,6 +474,12 @@ export function ListStoreProvider(props: ParentProps) {
           setIsSynchronizing(false);
           refetchLists();
         });
+    },
+    async importList(docId): Promise<List> {
+      const doc = await listStore.importList(docId);
+      await refetchLists();
+
+      return doc;
     },
     isSynchronizing,
   };
