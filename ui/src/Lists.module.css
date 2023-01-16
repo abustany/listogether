@@ -11,6 +11,7 @@
 .Lists {
   flex: 0 0 auto;
   list-style: none;
+  padding: 0;
 }
 
 .Lists > li {
