@@ -5,7 +5,7 @@ import { A } from "@solidjs/router";
 import { useLists } from "./ListStore";
 import styles from "./List.module.css";
 import { ArrowLeft } from "./icons/ArrowLeft";
-import { Item, ListChange, Section } from "./list";
+import { Item, ListChange, Section } from "./list-schema";
 
 interface ListProps {
   id: string; // ID of the list

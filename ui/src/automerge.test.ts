@@ -2,7 +2,7 @@ import { describe, it } from "vitest";
 
 import * as Automerge from "@automerge/automerge";
 
-import { List } from "./list";
+import { List } from "./list-schema";
 
 function editOnBothSides(
   base: Automerge.Doc<List>,
