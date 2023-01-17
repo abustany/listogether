@@ -1,13 +1,5 @@
 import * as Automerge from "@automerge/automerge";
-import {
-  ParentProps,
-  createContext,
-  useContext,
-  createSignal,
-  createResource,
-  Resource,
-  InitializedResource,
-} from "solid-js";
+import { ParentProps, createContext, useContext, createSignal, createResource, Resource } from "solid-js";
 import { v4 as uuidv4 } from "uuid";
 import { DBSchema, IDBPDatabase, openDB, StoreNames } from "idb";
 import { toByteArray as decodeBase64 } from "base64-js";
@@ -158,6 +150,17 @@ class Storage {
   async saveSyncState(docId: string, syncState: Automerge.SyncState) {
     await (await this.db).put(Storage.SyncState, Automerge.encodeSyncState(syncState), docId);
   }
+
+  async loadLastSyncTime(): Promise<Date | undefined> {
+    const timestamp = (await (await this.db).get(Storage.MetaStore, Storage.MetaKeys.last_sync_time)) as
+      | number
+      | undefined;
+    return timestamp ? new Date(timestamp) : undefined;
+  }
+
+  async saveLastSyncTime(d: Date): Promise<void> {
+    await (await this.db).put(Storage.MetaStore, d.getTime(), Storage.MetaKeys.last_sync_time);
+  }
 }
 
 namespace Storage {
@@ -167,6 +170,7 @@ namespace Storage {
   export const MetaKeys = {
     device_id: "device_id",
     list_ids: "list_ids",
+    last_sync_time: "last_sync_time",
   };
 
   export interface Schema extends DBSchema {
@@ -416,6 +420,8 @@ class ListStore {
           console.error(`error synchronizing document ${docId}: ${e}`);
         }
       }
+
+      await storage.saveLastSyncTime(new Date());
     });
   }
   async importList(docId: string): Promise<Automerge.Doc<List>> {
@@ -430,12 +436,16 @@ class ListStore {
       return doc;
     });
   }
+  async getLastSyncTime(): Promise<Date | undefined> {
+    return storage.loadLastSyncTime();
+  }
 }
 
 const listStore = new ListStore();
 
 interface IListStoreContext {
   getLists: Resource<Readonly<List>[]>;
+  getLastSyncTime(): Date | undefined;
   addList(name: string): Promise<string>;
   deleteList(id: string): Promise<void>;
   updateList(listId: string, changes: ListChange[]): Promise<void>;
@@ -450,17 +460,22 @@ export function ListStoreProvider(props: ParentProps) {
   const [getLists, { mutate: mutateLists, refetch: refetchLists }] = createResource<List[]>(() =>
     listStore.loadLists(),
   );
+  const [getLastSyncTime, { refetch: refetchLastSyncTime }] = createResource<Date | undefined>(() =>
+    listStore.getLastSyncTime(),
+  );
   const ensureListsAreLoaded = () => {
     if (getLists.latest === undefined) throw new Error("lists are not loaded yet");
   };
   const [isSynchronizing, setIsSynchronizing] = createSignal<boolean>(false);
   const p: IListStoreContext = {
     getLists,
+    getLastSyncTime,
     async addList(name: string): Promise<string> {
       ensureListsAreLoaded();
 
       const l = await listStore.addList(name);
       await refetchLists();
+      p.sync();
       return l.id;
     },
     async deleteList(id: string): Promise<void> {
@@ -470,14 +485,17 @@ export function ListStoreProvider(props: ParentProps) {
 
       await listStore.deleteList(id);
       await refetchLists();
+      p.sync();
     },
     async updateList(listId: string, changes: ListChange[]): Promise<void> {
       ensureListsAreLoaded();
 
+      if (changes.length === 0) return Promise.resolve(undefined);
       // TODO: implement optimistic update?
 
       await listStore.updateList(listId, changes);
       await refetchLists();
+      p.sync();
     },
     sync(): void {
       setIsSynchronizing(true);
@@ -489,6 +507,7 @@ export function ListStoreProvider(props: ParentProps) {
         .finally(() => {
           setIsSynchronizing(false);
           refetchLists();
+          refetchLastSyncTime();
         });
     },
     async importList(docId): Promise<List> {

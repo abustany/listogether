@@ -97,25 +97,18 @@
   flex: 0 0 auto;
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   justify-content: center;
-  gap: 1rem;
+  gap: .1rem;
+  font-size: 14px;
 }
 
-.SyncIcon {
-  animation-name: sync-rotation;
-  animation-iteration-count: infinite;
-  animation-duration: 1s;
-  animation-timing-function: linear;
-}
-
-@keyframes sync-rotation {
-  from {
-    transform: rotateZ(0deg);
-  }
-
-  to {
-    transform: rotateZ(360deg);
-  }
+.SyncStatus button {
+  border: 0;
+  background-color: transparent;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .ModalOverlay {

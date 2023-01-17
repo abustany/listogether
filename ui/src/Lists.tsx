@@ -1,12 +1,12 @@
-import { Component, For, createSignal } from "solid-js";
+import { Component, For, createSignal, Switch, Match } from "solid-js";
 import { A, useNavigate } from "@solidjs/router";
+import { formatDistanceToNow } from "date-fns";
 
 import { useLists } from "./ListStore";
 
 import styles from "./Lists.module.css";
 import { Plus } from "./icons/Plus";
 import { Trash2 } from "./icons/Trash2";
-import { RefreshCw } from "./icons/RefreshCw";
 import { createSlowBoolSignal } from "./slow-bool-signal";
 import { Share2 } from "./icons/Share2";
 import { Portal } from "solid-js/web";
@@ -93,7 +93,7 @@ const ShareModal: Component<{ listId: string; onClose: () => void }> = (props) =
 };
 
 export const Lists: Component = () => {
-  const { getLists, addList, isSynchronizing, sync } = useLists();
+  const { getLastSyncTime, getLists, addList, isSynchronizing, sync } = useLists();
   const navigate = useNavigate();
   const slowIsSynchronizing = createSlowBoolSignal(isSynchronizing, 1000);
   const [shareModalListId, setShareModalListId] = createSignal<string>();
@@ -122,8 +122,13 @@ export const Lists: Component = () => {
       </ul>
 
       <div class={styles.SyncStatus}>
+        <Switch>
+          <Match when={slowIsSynchronizing()}>Synchronizing…</Match>
+          <Match when={getLastSyncTime() !== undefined}>
+            Last synchronized {formatDistanceToNow(getLastSyncTime()!, { addSuffix: true })}.
+          </Match>
+        </Switch>
         <button onclick={sync}>Synchronize now</button>
-        {slowIsSynchronizing() && <RefreshCw class={styles.SyncIcon} />}
       </div>
 
       {shareModalListId() && (
