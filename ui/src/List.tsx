@@ -1,15 +1,11 @@
-import { Component, For, onCleanup } from "solid-js";
+import { Component, For, onCleanup, Match, Switch } from "solid-js";
 import { createStore } from "solid-js/store";
 import { A } from "@solidjs/router";
 
 import { useLists } from "./ListStore";
 import styles from "./List.module.css";
 import { ArrowLeft } from "./icons/ArrowLeft";
-import { Item, ListChange, Section } from "./list-schema";
-
-interface ListProps {
-  id: string; // ID of the list
-}
+import { Item, List as ListSchema, ListChange, Section } from "./list-schema";
 
 function ensureSentinel<T>(items: T[], isSentinel: (x: T) => boolean, makeSentinel: () => T): T[] {
   if (items.length > 0 && isSentinel(items[items.length - 1])) return items;
@@ -48,25 +44,20 @@ function appendChange<T extends ListChange["type"]>(
   }
 }
 
-export const List: Component<ListProps> = (props) => {
-  const { getLists, updateList } = useLists();
-  const lists = getLists();
-  const list = lists.find((x) => x.id === props.id);
+const ListLoaded: Component<{ list: ListSchema }> = (props) => {
+  const { updateList } = useLists();
+
   let nameInputRef: HTMLInputElement;
 
-  if (list === undefined) {
-    return <>We could not find a list with ID {props.id}</>;
-  }
-
-  const [sections, setSections] = createStore<Section[]>(appendSentinels(list.sections));
+  const [sections, setSections] = createStore<Section[]>(appendSentinels(props.list.sections));
   const changes: ListChange[] = [];
 
   onCleanup(() => {
-    if (list.name !== nameInputRef.value) {
+    if (props.list.name !== nameInputRef.value) {
       changes.push({ type: "name-change", name: nameInputRef.value });
     }
 
-    updateList(list.id, changes);
+    updateList(props.list.id, changes);
   });
 
   const renameSection = (idx: number, name: string) =>
@@ -129,7 +120,7 @@ export const List: Component<ListProps> = (props) => {
           ref={nameInputRef!}
           type="text"
           class={`${styles.TransparentInput} ${styles.Name}`}
-          value={list.name}
+          value={props.list.name}
           placeholder="List name"
         />
       </header>
@@ -190,5 +181,28 @@ export const List: Component<ListProps> = (props) => {
         }}
       </For>
     </div>
+  );
+};
+
+export const List: Component<{ id: string }> = (props) => {
+  const listId = props.id;
+  const { getLists } = useLists();
+  const findList = () => getLists()?.find((x) => x.id === listId);
+
+  return (
+    <Switch>
+      <Match when={getLists.error !== undefined}>
+        <>💣 There was an error loading this list</>
+      </Match>
+      <Match when={getLists.latest === undefined}>
+        <>🕒 Loading…</>
+      </Match>
+      <Match when={findList() === undefined}>
+        <>🕵️ This list wasnot found :-/</>
+      </Match>
+      <Match when={findList() !== undefined}>
+        <ListLoaded list={findList()!} />
+      </Match>
+    </Switch>
   );
 };

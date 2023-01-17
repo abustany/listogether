@@ -1,5 +1,13 @@
 import * as Automerge from "@automerge/automerge";
-import { ParentProps, createContext, useContext, createSignal, createResource } from "solid-js";
+import {
+  ParentProps,
+  createContext,
+  useContext,
+  createSignal,
+  createResource,
+  Resource,
+  InitializedResource,
+} from "solid-js";
 import { v4 as uuidv4 } from "uuid";
 import { DBSchema, IDBPDatabase, openDB, StoreNames } from "idb";
 import { toByteArray as decodeBase64 } from "base64-js";
@@ -427,7 +435,7 @@ class ListStore {
 const listStore = new ListStore();
 
 interface IListStoreContext {
-  getLists(): Readonly<List>[];
+  getLists: Resource<Readonly<List>[]>;
   addList(name: string): Promise<string>;
   deleteList(id: string): Promise<void>;
   updateList(listId: string, changes: ListChange[]): Promise<void>;
@@ -439,25 +447,33 @@ interface IListStoreContext {
 export const ListStoreContext = createContext<IListStoreContext | null>(null);
 
 export function ListStoreProvider(props: ParentProps) {
-  const [getLists, { mutate: mutateLists, refetch: refetchLists }] = createResource<List[]>(
-    () => listStore.loadLists(),
-    { initialValue: [] },
+  const [getLists, { mutate: mutateLists, refetch: refetchLists }] = createResource<List[]>(() =>
+    listStore.loadLists(),
   );
+  const ensureListsAreLoaded = () => {
+    if (getLists.latest === undefined) throw new Error("lists are not loaded yet");
+  };
   const [isSynchronizing, setIsSynchronizing] = createSignal<boolean>(false);
   const p: IListStoreContext = {
     getLists,
     async addList(name: string): Promise<string> {
+      ensureListsAreLoaded();
+
       const l = await listStore.addList(name);
       await refetchLists();
       return l.id;
     },
     async deleteList(id: string): Promise<void> {
-      mutateLists((lists) => lists.filter((l) => l.id !== id));
+      ensureListsAreLoaded();
+
+      mutateLists((lists) => lists?.filter((l) => l.id !== id));
 
       await listStore.deleteList(id);
       await refetchLists();
     },
     async updateList(listId: string, changes: ListChange[]): Promise<void> {
+      ensureListsAreLoaded();
+
       // TODO: implement optimistic update?
 
       await listStore.updateList(listId, changes);
