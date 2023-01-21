@@ -1,0 +1,16 @@
+.SyncStatus {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .1rem;
+  font-size: 14px;
+}
+
+.SyncStatus button {
+  border: 0;
+  background-color: transparent;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
