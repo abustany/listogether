@@ -10,6 +10,8 @@ const ID_LEN: usize = 16; // bytes
 const SIGNATURE_LEN: usize = 64; // bytes
 
 pub struct DeviceID(Vec<u8>);
+
+#[derive(Clone)]
 pub struct SigningKey(Key);
 
 impl DeviceID {
