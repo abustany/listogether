@@ -25,7 +25,7 @@ enum Commands {
     /// Starts the server
     Serve {
         /// Address on which to listen
-        #[arg(long, default_value = "127.0.0.1:8789")]
+        #[arg(long, default_value = "127.0.0.1:8789", env = "LISTEN_ADDRESS")]
         listen_address: String,
 
         /// Key used to sign device IDs (so they can't be forged)
