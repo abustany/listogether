@@ -13,7 +13,6 @@ COPY server/ .
 ENV CARGO_HOME=/cargo
 COPY --from=ui /src/ui /ui
 RUN --mount=type=cache,target=/cargo --mount=type=cache,target=/src/target/deps cargo build --release
-RUN ls -R /src
 
 FROM curlimages/curl:7.87.0 AS init
 RUN curl -L -o /tmp/dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.5/dumb-init_1.2.5_x86_64
