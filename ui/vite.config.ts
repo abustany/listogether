@@ -44,6 +44,7 @@ export default defineConfig({
   },
   build: {
     target: "esnext",
+    sourcemap: true
   },
   optimizeDeps: {
     exclude: ["@automerge/automerge-wasm"],
