@@ -502,7 +502,7 @@ export function ListStoreProvider(props: ParentProps) {
       listStore
         .sync()
         .catch((e) => {
-          console.error("sync failed", e);
+          console.error("sync failed", e, e.stack);
         })
         .finally(() => {
           setIsSynchronizing(false);
