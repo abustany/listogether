@@ -372,7 +372,8 @@ class ListStore {
     const deviceId = await getDeviceId();
     console.log(`device ID is ${deviceId.raw} (${rawDeviceIdToHex(deviceId.raw)})`);
 
-    const ws = new WebSocket(`ws://${window.location.host}/api/v1/document/sync`);
+    const websocketProtocol = document.location.protocol === "http:" ? "ws" : "wss";
+    const ws = new WebSocket(`${websocketProtocol}://${window.location.host}/api/v1/document/sync`);
     ws.binaryType = "arraybuffer";
 
     let res: T;
