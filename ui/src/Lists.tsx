@@ -1,13 +1,12 @@
-import { Component, For, createSignal } from "solid-js";
+import { Component, For, createSignal, Show } from "solid-js";
 import { A, useNavigate } from "@solidjs/router";
+import { Portal } from "solid-js/web";
 
 import { useLists } from "./ListStore";
-
 import styles from "./Lists.module.css";
 import { Plus } from "./icons/Plus";
 import { Trash2 } from "./icons/Trash2";
 import { Share2 } from "./icons/Share2";
-import { Portal } from "solid-js/web";
 import { X } from "./icons/X";
 import { SyncStatus } from "./SyncStatus";
 
@@ -64,6 +63,15 @@ const ListItem: Component<{ id: string; name: string; onShare: (id: string) => v
 };
 
 const ShareModal: Component<{ listId: string; onClose: () => void }> = (props) => {
+  const importURL = `${window.location.origin}/import/${props.listId}`;
+  const [copied, setCopied] = createSignal(false);
+  const onLinkClick = async () => {
+    try {
+      await navigator.clipboard.writeText(importURL);
+      setCopied(true);
+    } catch (_ignored) {}
+  };
+
   return (
     <Portal mount={document.getElementById("portal")!}>
       <div class={styles.ModalOverlay} />
@@ -80,10 +88,12 @@ const ShareModal: Component<{ listId: string; onClose: () => void }> = (props) =
             <X />
           </button>
           <div class={styles.ModalContent}>
-            Share the following link to give read and write access to this list:
-            <div class={styles.ListLink}>
-              {window.location.origin}/import/{props.listId}
+            Share the following link to give read and write access to this list. Click on the link to copy it to the
+            clipboard.
+            <div class={styles.ListLink} onclick={onLinkClick}>
+              {importURL}
             </div>
+            <Show when={copied()}>Link copied to clipboard!</Show>
           </div>
         </div>
       </div>
