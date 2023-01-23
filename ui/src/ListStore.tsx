@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import { DBSchema, IDBPDatabase, openDB, StoreNames } from "idb";
 import { toByteArray as decodeBase64 } from "base64-js";
 
+import { captureException } from "./errors";
 import { List, ListChange } from "./list-schema";
 
 interface ListIds {
@@ -503,6 +504,7 @@ export function ListStoreProvider(props: ParentProps) {
         .sync()
         .catch((e) => {
           console.error("sync failed", e, e.stack);
+          captureException(e);
         })
         .finally(() => {
           setIsSynchronizing(false);
