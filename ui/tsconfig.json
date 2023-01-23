@@ -15,7 +15,10 @@
     "noImplicitReturns": true,
     "skipLibCheck": true,
     "jsx": "preserve",
-    "jsxImportSource": "solid-js"
+    "jsxImportSource": "solid-js",
+    "types": [
+      "vite-plugin-pwa/client"
+    ]
   },
   "include": ["src"]
 }

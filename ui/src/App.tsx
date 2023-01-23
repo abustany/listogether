@@ -6,6 +6,7 @@ import { List } from "./List";
 import { Lists } from "./Lists";
 import styles from "./App.module.css";
 import { Import } from "./Import";
+import { UpdateIndicator } from "./UpdateIndicator";
 
 // We need an extra level of wrapping here to enable animations: the elements
 // that gets replaced must have an absolute position (ie not be in the flow) to
@@ -65,6 +66,7 @@ const App: Component = () => {
           />
         </Routes>
       </Transition>
+      <UpdateIndicator />
     </div>
   );
 };
