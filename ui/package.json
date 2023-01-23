@@ -26,7 +26,8 @@
     "vite-plugin-solid": "^2.5.0",
     "vite-plugin-wasm": "^3.1.0",
     "vitest": "^0.27.1",
-    "workbox-build": "^6.5.4"
+    "workbox-build": "^6.5.4",
+    "workbox-window": "^6.5.4"
   },
   "dependencies": {
     "@automerge/automerge": "^2.0.0",
@@ -38,7 +39,6 @@
     "solid-js": "^1.6.2",
     "solid-transition-group": "^0.0.12",
     "uuid": "^8.3",
-    "workbox-precaching": "^6.5.4",
-    "workbox-window": "^6.5.4"
+    "workbox-precaching": "^6.5.4"
   }
 }
