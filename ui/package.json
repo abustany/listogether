@@ -7,7 +7,7 @@
     "build": "tsc && vite build",
     "check": "rome ci src",
     "dev": "vite",
-    "icons": "./scripts/make-icons.js",
+    "icons": "./scripts/make-icons.js && rome format --write src/icons && rome check --apply-suggested src/icons",
     "format": "rome format --write src",
     "lint": "rome check src",
     "prepare": "cd .. && husky install ui/.husky",
