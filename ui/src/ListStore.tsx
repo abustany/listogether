@@ -245,7 +245,7 @@ class ListStore {
       Automerge.change(listIds, { message, time: unixTimestamp() }, (x) => {
         const listIds = x.ids ?? [];
         f(listIds);
-        x.ids = listIds;
+        if (x.ids !== listIds) x.ids = listIds;
       }),
     );
   }
