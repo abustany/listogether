@@ -243,9 +243,8 @@ class ListStore {
   ): Promise<void> {
     return storage.saveListIds(
       Automerge.change(listIds, { message, time: unixTimestamp() }, (x) => {
-        const listIds = x.ids ?? [];
-        f(listIds);
-        if (x.ids !== listIds) x.ids = listIds;
+        if (x.ids === undefined) x.ids = [];
+        f(x.ids);
       }),
     );
   }
