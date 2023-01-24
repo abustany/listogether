@@ -43,7 +43,12 @@
   flex: 1 1 100%;
 }
 
-.Lists button {
+.Fallback {
+  padding: 1rem;
+  justify-content: center;
+}
+
+.TextButton {
   color: inherit;
   border: 0;
   background-color: transparent;
@@ -55,17 +60,13 @@
   gap: .2rem;
 }
 
-.Fallback {
-  padding: 1rem;
-  justify-content: center;
-}
-
 .AddButton {
   flex: 1 1 100%;
 }
 
 .ToolButton {
   flex: 0 0 auto;
+  border-left: 1px solid #ccc;
 }
 
 .DeleteButton {
@@ -81,9 +82,8 @@
 }
 
 .DeleteButtonConfirm {
-  /* we need !important here else rules are overriden by .Lists button above */
-  color: white !important;
-  background-color: #b00 !important;
+  color: white;
+  background-color: #b00;
   transition-duration: 0s, 0s;
   transition-delay: 0s;
 }
@@ -102,4 +102,8 @@
   background-color: #ddd;
   padding: .5rem;
   cursor: pointer;
+}
+
+.ImportButton {
+  align-self: end;
 }

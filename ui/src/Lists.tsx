@@ -7,6 +7,7 @@ import { Plus } from "./icons/Plus";
 import { Trash2 } from "./icons/Trash2";
 import { Share2 } from "./icons/Share2";
 import { SyncStatus } from "./SyncStatus";
+import { Link } from "./icons/Link";
 import { Modal } from "./Modal";
 
 const DeleteButton: Component<{ onDelete: () => void }> = (props) => {
@@ -25,7 +26,9 @@ const DeleteButton: Component<{ onDelete: () => void }> = (props) => {
       onmouseleave={() => {
         setConfirm(false);
       }}
-      class={`${styles.ToolButton} ${styles.DeleteButton} ${confirm() ? styles.DeleteButtonConfirm : undefined}`}
+      class={`${styles.TextButton} ${styles.ToolButton} ${styles.DeleteButton} ${
+        confirm() ? styles.DeleteButtonConfirm : undefined
+      }`}
       title="Delete this list"
     >
       <Trash2 />
@@ -36,8 +39,20 @@ const DeleteButton: Component<{ onDelete: () => void }> = (props) => {
 
 const ShareButton: Component<{ onShare: () => void }> = (props) => {
   return (
-    <button onclick={props.onShare} class={styles.ToolButton} title="Share this list">
+    <button onclick={props.onShare} class={`${styles.TextButton} ${styles.ToolButton}`} title="Share this list">
       <Share2 />
+    </button>
+  );
+};
+
+const ImportButton: Component<{ onImport: () => void }> = (props) => {
+  return (
+    <button
+      onclick={props.onImport}
+      class={`${styles.TextButton} ${styles.ToolButton}`}
+      title="Import a list from a URL"
+    >
+      <Link /> Import a list…
     </button>
   );
 };
@@ -62,8 +77,10 @@ const ListItem: Component<{ id: string; name: string; onShare: (id: string) => v
   );
 };
 
+const listImportUrl = (listId: string) => `${window.location.origin}/import/${listId}`;
+
 const ShareModal: Component<{ listId: string; onClose: () => void }> = (props) => {
-  const importURL = `${window.location.origin}/import/${props.listId}`;
+  const importURL = listImportUrl(props.listId);
   const [copied, setCopied] = createSignal(false);
   const onLinkClick = async () => {
     try {
@@ -84,10 +101,40 @@ const ShareModal: Component<{ listId: string; onClose: () => void }> = (props) =
   );
 };
 
+const ImportModal: Component<{ onClose: () => void }> = (props) => {
+  const navigate = useNavigate();
+  const [getUrl, setUrl] = createSignal<string>();
+  const onImport = () => {
+    const url = getUrl();
+    if (!url) return;
+
+    const expectedPrefix = listImportUrl("");
+    if (url.indexOf(expectedPrefix) !== 0) return;
+
+    const listId = url.slice(expectedPrefix.length);
+    navigate(`/import/${listId}`);
+  };
+  return (
+    <Modal title="Import list" onClose={props.onClose}>
+      <input
+        type="text"
+        placeholder="Sharing URL"
+        onchange={(ev) => {
+          setUrl((ev.target as HTMLInputElement).value);
+        }}
+      />
+      <button class={styles.ImportButton} onclick={onImport}>
+        Import
+      </button>
+    </Modal>
+  );
+};
+
 export const Lists: Component = () => {
   const { getLists, addList } = useLists();
   const navigate = useNavigate();
   const [shareModalListId, setShareModalListId] = createSignal<string>();
+  const [showImportModal, setShowImportModal] = createSignal(false);
 
   const onAddNewList = async () => {
     const listId = await addList("New list");
@@ -98,6 +145,10 @@ export const Lists: Component = () => {
     setShareModalListId(id);
   };
 
+  const onImportList = () => {
+    setShowImportModal(true);
+  };
+
   return (
     <div class={styles.Wrapper}>
       <ul class={styles.Lists}>
@@ -105,10 +156,11 @@ export const Lists: Component = () => {
           {(item) => <ListItem id={item.id} name={item.name} onShare={onShareList} />}
         </For>
         <li>
-          <button onclick={onAddNewList} class={styles.AddButton}>
+          <button onclick={onAddNewList} class={`${styles.TextButton} ${styles.AddButton}`}>
             <Plus size="1em" />
             Add new list…
           </button>
+          <ImportButton onImport={onImportList} />
         </li>
       </ul>
 
@@ -116,14 +168,22 @@ export const Lists: Component = () => {
         <SyncStatus />
       </div>
 
-      {shareModalListId() && (
+      <Show when={shareModalListId()}>
         <ShareModal
           listId={shareModalListId()!}
           onClose={() => {
             setShareModalListId(undefined);
           }}
         />
-      )}
+      </Show>
+
+      <Show when={showImportModal()}>
+        <ImportModal
+          onClose={() => {
+            setShowImportModal(false);
+          }}
+        />
+      </Show>
     </div>
   );
 };
