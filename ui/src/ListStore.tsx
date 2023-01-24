@@ -152,6 +152,10 @@ class Storage {
     await (await this.db).put(Storage.SyncState, Automerge.encodeSyncState(syncState), docId);
   }
 
+  async deleteSyncState(docId: string): Promise<void> {
+    return (await this.db).delete(Storage.SyncState, docId);
+  }
+
   async loadLastSyncTime(): Promise<Date | undefined> {
     const timestamp = (await (await this.db).get(Storage.MetaStore, Storage.MetaKeys.last_sync_time)) as
       | number
@@ -277,6 +281,7 @@ class ListStore {
   }
 
   async deleteList(id: string): Promise<void> {
+    await storage.deleteSyncState(id);
     await storage.deleteDoc(id);
 
     const listIds = await this.loadListIds();
