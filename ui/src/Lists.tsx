@@ -26,7 +26,8 @@ const DeleteButton: Component<{ onDelete: () => void }> = (props) => {
       onmouseleave={() => {
         setConfirm(false);
       }}
-      class={`${styles.DeleteButton} ${confirm() ? styles.DeleteButtonConfirm : undefined}`}
+      class={`${styles.ToolButton} ${styles.DeleteButton} ${confirm() ? styles.DeleteButtonConfirm : undefined}`}
+      title="Delete this list"
     >
       <Trash2 />
       <span>Click to confirm</span>
@@ -36,7 +37,7 @@ const DeleteButton: Component<{ onDelete: () => void }> = (props) => {
 
 const ShareButton: Component<{ onShare: () => void }> = (props) => {
   return (
-    <button onclick={props.onShare} class={styles.ShareButton}>
+    <button onclick={props.onShare} class={styles.ToolButton} title="Share this list">
       <Share2 />
     </button>
   );

@@ -64,12 +64,11 @@
   flex: 1 1 100%;
 }
 
-.ShareButton {
+.ToolButton {
   flex: 0 0 auto;
 }
 
 .DeleteButton {
-  flex: 0 0 auto;
   transition: color 0s, background-color .3s linear;
   transition-delay: .5s;
 }
