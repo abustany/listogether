@@ -14,3 +14,7 @@ a {
   text-decoration: none;
   display: inline-block;
 }
+
+button {
+  margin: 0;
+}
