@@ -14,7 +14,7 @@ if (import.meta.env.PROD) {
 }
 
 if (!("serviceWorker" in navigator)) {
-  throw new Error("service workers are not supported");
+  console.error("service workers are not supported");
 }
 
 render(
