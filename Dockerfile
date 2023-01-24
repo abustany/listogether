@@ -1,10 +1,8 @@
 FROM node:19.4.0-bullseye-slim AS ui
 
 WORKDIR /src/ui
-COPY ui/package.json ui/yarn.lock /src/ui/
-RUN yarn
 COPY ui/ .
-RUN yarn build
+RUN --mount=type=cache,target=/usr/local/share/.cache/yarn/v6 yarn && yarn build
 
 FROM rust:1.66.1-slim-bullseye AS server
 
