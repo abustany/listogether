@@ -1,14 +1,13 @@
 import { Component, For, createSignal, Show } from "solid-js";
 import { A, useNavigate } from "@solidjs/router";
-import { Portal } from "solid-js/web";
 
 import { useLists } from "./ListStore";
 import styles from "./Lists.module.css";
 import { Plus } from "./icons/Plus";
 import { Trash2 } from "./icons/Trash2";
 import { Share2 } from "./icons/Share2";
-import { X } from "./icons/X";
 import { SyncStatus } from "./SyncStatus";
+import { Modal } from "./Modal";
 
 const DeleteButton: Component<{ onDelete: () => void }> = (props) => {
   const [confirm, setConfirm] = createSignal(false);
@@ -74,31 +73,14 @@ const ShareModal: Component<{ listId: string; onClose: () => void }> = (props) =
   };
 
   return (
-    <Portal mount={document.getElementById("portal")!}>
-      <div class={styles.ModalOverlay} />
-      <div class={styles.ModalOverlayBackdrop} />
-      <div class={styles.ModalContainer} onclick={props.onClose}>
-        <div
-          class={styles.Modal}
-          onclick={(ev) => {
-            ev.stopPropagation();
-          }}
-        >
-          <header class={styles.ModalHeader}>Share list</header>
-          <button onclick={props.onClose} class={styles.ModalClose}>
-            <X />
-          </button>
-          <div class={styles.ModalContent}>
-            Share the following link to give read and write access to this list. Click on the link to copy it to the
-            clipboard.
-            <div class={styles.ListLink} onclick={onLinkClick}>
-              {importURL}
-            </div>
-            <Show when={copied()}>Link copied to clipboard!</Show>
-          </div>
-        </div>
+    <Modal title="Share list" onClose={props.onClose}>
+      Share the following link to give read and write access to this list. Click on the link to copy it to the
+      clipboard.
+      <div class={styles.ListLink} onclick={onLinkClick}>
+        {importURL}
       </div>
-    </Portal>
+      <Show when={copied()}>Link copied to clipboard!</Show>
+    </Modal>
   );
 };
 
