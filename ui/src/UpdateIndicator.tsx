@@ -18,8 +18,9 @@ export const UpdateIndicator: Component = () => {
     },
   });
 
-  const onUpdate = () => {
-    updateServiceWorker(true);
+  const onUpdate = async () => {
+    await updateServiceWorker(true); // param is actually ignored now
+    window.location.reload();
   };
 
   const onDismiss = () => {
