@@ -164,7 +164,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
                         )}
                         <input
                           type="text"
-                          class={`${styles.TransparentInput}`}
+                          class={`${styles.TransparentInput} ${isLastItem() ? styles.NewItem : undefined}`}
                           placeholder="New item…"
                           value={item.text}
                           onInput={(ev) => {

@@ -158,7 +158,7 @@ export const Lists: Component = () => {
         <li>
           <button onclick={onAddNewList} class={`${styles.TextButton} ${styles.AddButton}`}>
             <Plus size="1em" />
-            Add new list…
+            New list…
           </button>
           <ImportButton onImport={onImportList} />
         </li>
