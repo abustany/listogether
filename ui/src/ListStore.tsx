@@ -413,6 +413,7 @@ class ListStore {
         await storage.saveListIds(listIdsDoc);
       } catch (e) {
         console.error(`error synchronizing list ids: ${e}`);
+        throw e;
       }
 
       // sync all docs
@@ -424,6 +425,7 @@ class ListStore {
           await storage.saveDoc(docId, doc);
         } catch (e) {
           console.error(`error synchronizing document ${docId}: ${e}`);
+          throw e;
         }
       }
 
