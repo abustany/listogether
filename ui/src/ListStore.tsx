@@ -383,11 +383,18 @@ class ListStore {
     let res: T;
 
     return new Promise((resolve, reject) => {
-      ws.onerror = (ev) => {
-        reject(ev);
-      };
-      ws.onclose = () => {
-        resolve(res);
+      // readyToClose becomes true once f returns. At that point it doesn't
+      // matter who closes the socket first between us and the server. Firefox
+      // and Chrome seem to happily close a closed socket, but Safari will
+      // throw an error.
+      let readyToClose = false;
+
+      ws.onclose = (ev) => {
+        if (readyToClose) {
+          resolve(res);
+        } else {
+          reject(new Error(`WebSocket closed with code ${ev.code}`));
+        }
       };
       ws.onopen = async () => {
         // send protocol version
@@ -396,6 +403,7 @@ class ListStore {
 
         try {
           res = await f(deviceId, ws);
+          readyToClose = true;
         } finally {
           ws.close();
         }
