@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.66"
-automerge = "0.2.0"
+automerge = "0.3.0"
 axum = { version = "0.6.1", features = ["ws"] }
 base64 = "0.13.1"
 clap = { version = "4.0.29", features = ["derive", "env"] }

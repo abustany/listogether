@@ -1,7 +1,7 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::{anyhow, Context, Result, bail};
-use automerge::{Automerge, ActorId};
+use automerge::{Automerge, ActorId, sync::SyncDoc};
 use axum::{
     extract::{State, WebSocketUpgrade, ws::{WebSocket, Message}},
     http::{header, StatusCode, Uri},
