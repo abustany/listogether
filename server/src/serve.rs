@@ -230,7 +230,7 @@ async fn sync_socket_handler(state: Arc<AppState>, mut socket: WebSocket) {
                 return;
             },
             Ok(Some(doc)) => {
-                info!("sync done, result: {:?}", doc);
+                info!("sync done, new heads: {:?}", doc.get_heads());
             },
         };
 
