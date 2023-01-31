@@ -15,7 +15,7 @@
     "test": "vitest"
   },
   "devDependencies": {
-    "@types/uuid": "^8.3",
+    "@types/uuid": "^9.0.0",
     "feather-icons": "^4.29.0",
     "husky": "^8.0.2",
     "jsdom": "^21.0.0",
@@ -30,7 +30,7 @@
     "workbox-window": "^6.5.4"
   },
   "dependencies": {
-    "@automerge/automerge": "^2.0.0",
+    "@automerge/automerge": "^2.0.1",
     "@sentry/browser": "^7.31.1",
     "@solidjs/router": "^0.6.0",
     "base64-js": "^1.5.1",
@@ -38,7 +38,7 @@
     "idb": "^7.1.1",
     "solid-js": "^1.6.2",
     "solid-transition-group": "^0.0.12",
-    "uuid": "^8.3",
+    "uuid": "^9.0.0",
     "workbox-precaching": "^6.5.4"
   }
 }

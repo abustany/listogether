@@ -8,7 +8,7 @@ import { captureException } from "./errors";
 import { List, ListChange } from "./list-schema";
 
 interface ListIds {
-  ids?: string[];
+  ids: string[];
 }
 
 function describeChange(c: ListChange): string {
@@ -216,7 +216,11 @@ function rawDeviceIdToHex(id: string): string {
 
 const storage = new Storage();
 
-function initDoc<T>(deviceId: DeviceID): Automerge.Doc<T> {
+function initDoc<T>(deviceId: DeviceID, initialValue?: T): Automerge.Doc<T> {
+  if (initialValue) {
+    return Automerge.from(initialValue, { actor: rawDeviceIdToHex(deviceId.raw) });
+  }
+
   return Automerge.init<T>({ actor: rawDeviceIdToHex(deviceId.raw) });
 }
 
@@ -233,7 +237,7 @@ class ListStore {
 
   private async loadListIds(): Promise<Automerge.Doc<ListIds>> {
     const deviceId = await getDeviceId();
-    return (await storage.loadListIds(await this.getActorId())) ?? initDoc<ListIds>(deviceId);
+    return (await storage.loadListIds(await this.getActorId())) ?? initDoc<ListIds>(deviceId, { ids: [] });
   }
 
   private async updateListIds(
@@ -243,7 +247,6 @@ class ListStore {
   ): Promise<void> {
     return storage.saveListIds(
       Automerge.change(listIds, { message, time: unixTimestamp() }, (x) => {
-        if (x.ids === undefined) x.ids = [];
         f(x.ids);
       }),
     );
@@ -265,15 +268,7 @@ class ListStore {
 
   async addList(name: string): Promise<List> {
     const deviceId = await getDeviceId();
-    const l = Automerge.change(
-      initDoc<List>(deviceId),
-      { message: `Create list ${name}`, time: unixTimestamp() },
-      (doc) => {
-        doc.id = uuidv4();
-        doc.name = name;
-        doc.sections = [];
-      },
-    );
+    const l = initDoc<List>(deviceId, { id: uuidv4(), name, sections: [] });
     await this.saveList(l);
     await this.updateListIds(await this.loadListIds(), `Add list ${l.id}`, (ids) => ids.push(l.id));
     return l;
