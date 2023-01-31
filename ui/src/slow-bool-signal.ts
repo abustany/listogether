@@ -10,7 +10,7 @@ import { Accessor, createEffect, createSignal, on, onCleanup } from "solid-js";
 export function createSlowBoolSignal(signal: Accessor<boolean>, timeout: number): Accessor<boolean> {
   const [getVal, setVal] = createSignal(false);
   let lastTrueTime: number;
-  let timeoutId: NodeJS.Timeout;
+  let timeoutId: number;
 
   const clearSetValTimeout = () => {
     if (timeoutId) clearTimeout(timeoutId);
