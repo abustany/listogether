@@ -222,7 +222,7 @@ async fn sync_socket_handler(state: Arc<AppState>, mut socket: WebSocket) {
     loop {
         match sync_doc(Arc::clone(&state), &mut socket, &expected_actor_id).await {
             Err(e) => {
-                error!("sync failed: {}", e);
+                error!("sync failed: {:#}", e);
                 return;
             },
             Ok(None) => {
