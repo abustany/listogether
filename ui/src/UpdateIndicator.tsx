@@ -20,12 +20,6 @@ export const UpdateIndicator: Component = () => {
 
   const onUpdate = () => {
     updateServiceWorker(true); // param is actually ignored now
-
-    // hack: leave a bit of time for the new service worker to activate (just
-    // waiting on the Promise above is not enough.)
-    setTimeout(() => {
-      window.location.reload();
-    }, 1000);
   };
 
   const onDismiss = () => {
