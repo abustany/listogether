@@ -52,7 +52,7 @@ const ImportButton: Component<{ onImport: () => void }> = (props) => {
       class={`${styles.TextButton} ${styles.ToolButton}`}
       title="Import a list from a URL"
     >
-      <Link /> Import a list…
+      <Link size="1em" /> Import a list…
     </button>
   );
 };
