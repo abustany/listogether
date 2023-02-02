@@ -1,4 +1,5 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
 
-cd ui && yarn run check
+export PATH="$(pwd)/ui/node_modules/.bin:$PATH"
+cd ui && git-format-staged --formatter 'rome format --stdin-file-path {}' 'src/*'

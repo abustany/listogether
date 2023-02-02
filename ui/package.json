@@ -17,6 +17,7 @@
   "devDependencies": {
     "@types/uuid": "^9.0.0",
     "feather-icons": "^4.29.0",
+    "git-format-staged": "^3.0.0",
     "husky": "^8.0.2",
     "jsdom": "^21.0.0",
     "rome": "^11.0.0",
