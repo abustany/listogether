@@ -34,7 +34,7 @@
   "dependencies": {
     "@automerge/automerge": "^2.0.1",
     "@sentry/browser": "^7.31.1",
-    "@solidjs/router": "^0.6.0",
+    "@solidjs/router": "^0.7.0",
     "base64-js": "^1.5.1",
     "date-fns": "^2.29.3",
     "idb": "^7.1.1",
