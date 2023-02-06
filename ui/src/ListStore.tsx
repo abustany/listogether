@@ -441,6 +441,10 @@ class ListStore {
 
     return this.withSyncSocket(async (deviceId, ws) => {
       const doc = await this.syncDocument(ws, docId, initDoc<List>(deviceId));
+      if (!doc.id) {
+        throw new Error("no id property on document"); // sanity check
+      }
+
       await storage.saveDoc(docId, doc);
       await this.updateListIds(await this.loadListIds(), `Add list ${doc.id}`, (ids) => ids.push(doc.id));
 
@@ -535,3 +539,4 @@ export function ListStoreProvider(props: ParentProps) {
 }
 
 export const useLists = () => useContext(ListStoreContext)!;
+
