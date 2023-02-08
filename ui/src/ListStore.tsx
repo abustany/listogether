@@ -1,5 +1,6 @@
 import * as Automerge from "@automerge/automerge";
 import { ParentProps, createContext, useContext, createSignal, createResource, Resource } from "solid-js";
+import { makeEventListener } from "@solid-primitives/event-listener";
 import { v4 as uuidv4 } from "uuid";
 import { DBSchema, IDBPDatabase, openDB, StoreNames } from "idb";
 import { toByteArray as decodeBase64 } from "base64-js";
@@ -534,6 +535,10 @@ export function ListStoreProvider(props: ParentProps) {
     },
     isSynchronizing,
   };
+
+  makeEventListener(window, "online", () => {
+    p.sync();
+  });
 
   return <ListStoreContext.Provider value={p}>{props.children}</ListStoreContext.Provider>;
 }
