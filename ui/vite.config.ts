@@ -22,7 +22,7 @@ export default defineConfig({
       base: "/",
       strategies: "injectManifest",
       injectManifest: {
-        additionalManifestEntries: [],
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,wasm}"],
       },
       workbox: {
         navigateFallback: "/index.html",
