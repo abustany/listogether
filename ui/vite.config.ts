@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import wasm from "vite-plugin-wasm";
 import solidPlugin from "vite-plugin-solid";
-import { VitePWA } from 'vite-plugin-pwa'
+import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   plugins: [
@@ -15,20 +15,17 @@ export default defineConfig({
         background_color: "#dddddd",
         theme_color: "#dddddd",
         display: "standalone",
-        icons: [
-          {src: "icon_512.png", sizes: "512x512", type: "image/png"},
-        ]
+        icons: [{ src: "icon_512.png", sizes: "512x512", type: "image/png" }],
       },
-      srcDir: 'src',
-      filename: 'sw.ts',
-      base: '/',
-      strategies: 'injectManifest',
+      srcDir: "src",
+      filename: "sw.ts",
+      base: "/",
+      strategies: "injectManifest",
       injectManifest: {
-        additionalManifestEntries: [
-        ],
+        additionalManifestEntries: [],
       },
       workbox: {
-        navigateFallback: '/index.html',
+        navigateFallback: "/index.html",
       },
     }),
   ],
@@ -44,7 +41,7 @@ export default defineConfig({
   },
   build: {
     target: "esnext",
-    sourcemap: true
+    sourcemap: true,
   },
   optimizeDeps: {
     exclude: ["@automerge/automerge-wasm"],

@@ -4,16 +4,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 // Icons we want to generate.
-const ICONS = [
-  "arrow-left",
-  "check",
-  "link",
-  "plus",
-  "refresh-cw",
-  "share-2",
-  "trash-2",
-  "x"
-];
+const ICONS = ["arrow-left", "check", "link", "plus", "refresh-cw", "share-2", "trash-2", "x"];
 
 const kebabToCamelRe = /-(.)/g;
 
@@ -26,7 +17,7 @@ function camelCase(s) {
 const featherIcons = JSON.parse(fs.readFileSync("node_modules/feather-icons/dist/icons.json"));
 
 const outFolder = path.join("src", "icons");
-fs.mkdirSync(outFolder, {recursive: true});
+fs.mkdirSync(outFolder, { recursive: true });
 
 const iconPropsSource = `
 import { mergeProps, splitProps } from "solid-js";
@@ -49,7 +40,7 @@ export const withDefaultIconProps = (p: IconProps) => splitProps(
 );
 `.trim();
 
-fs.writeFileSync(path.join(outFolder, "props.ts"), iconPropsSource, 'utf-8');
+fs.writeFileSync(path.join(outFolder, "props.ts"), iconPropsSource, "utf-8");
 
 for (const iconName of ICONS) {
   const svgData = featherIcons[iconName];
@@ -83,6 +74,6 @@ export const ${componentName}: Component<IconProps> = (props) => {
 }
 `;
   const filename = path.join(outFolder, `${componentName}.tsx`);
-  console.log(`Writing ${filename}`)
-  fs.writeFileSync(filename, componentSource, 'utf-8');
+  console.log(`Writing ${filename}`);
+  fs.writeFileSync(filename, componentSource, "utf-8");
 }

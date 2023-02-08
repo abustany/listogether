@@ -9,7 +9,7 @@
     "check": "rome ci src",
     "dev": "vite",
     "icons": "./scripts/make-icons.js && rome format --write src/icons && rome check --apply-suggested src/icons",
-    "format": "rome format --write src",
+    "format": "rome format --write src scripts vite.config.ts",
     "lint": "rome check src",
     "prepare": "cd .. && husky install ui/.husky",
     "preview": "vite preview",
