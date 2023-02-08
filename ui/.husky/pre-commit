@@ -2,4 +2,4 @@
 . "$(dirname -- "$0")/_/husky.sh"
 
 export PATH="$(pwd)/ui/node_modules/.bin:$PATH"
-cd ui && git-format-staged --formatter 'rome format --stdin-file-path {}' 'src/*'
+cd ui && yarn check-staged

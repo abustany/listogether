@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc && vite build",
+    "check-staged": "./scripts/check-format.js",
     "check": "rome ci src",
     "dev": "vite",
     "icons": "./scripts/make-icons.js && rome format --write src/icons && rome check --apply-suggested src/icons",
@@ -17,7 +18,6 @@
   "devDependencies": {
     "@types/uuid": "^9.0.0",
     "feather-icons": "^4.29.0",
-    "git-format-staged": "^3.0.0",
     "husky": "^8.0.2",
     "jsdom": "^21.0.0",
     "rome": "^11.0.0",
