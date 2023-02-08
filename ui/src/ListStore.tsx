@@ -26,6 +26,8 @@ function describeChange(c: ListChange): string {
       return `Rename item #${1 + c.itemIdx} of section #${1 + c.sectionIdx} to ${c.text}`;
     case "update-item":
       return `${c.checked ? "Check" : "Uncheck"} item #${1 + c.itemIdx} of section #${1 + c.sectionIdx}`;
+    case "delete-item":
+      return `Delete item #${1 + c.itemIdx} of section #${1 + c.sectionIdx}`;
   }
 }
 
@@ -49,6 +51,8 @@ function applyChange(doc: List, c: ListChange): void {
     case "update-item":
       doc.sections[c.sectionIdx].items[c.itemIdx].checked = c.checked;
       return;
+    case "delete-item":
+      doc.sections[c.sectionIdx].items.splice(c.itemIdx, 1);
   }
 }
 

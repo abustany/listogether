@@ -141,6 +141,30 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
       (c) => c.sectionIdx === sectionIdx && c.itemIdx === itemIdx,
     );
 
+  const deleteItem = (sectionIdx: number, itemIdx: number) => {
+    // 1. delete the item from our local copy
+    const updatedItems = [...sections[sectionIdx].items];
+    const nItemsBeforeDeletion = updatedItems.length;
+    updatedItems.splice(itemIdx, 1);
+    setSections(sectionIdx, "items", updatedItems);
+
+    // 2. record the change
+    appendChange(
+      changes,
+      { type: "delete-item", sectionIdx, itemIdx },
+      (_c) => false, // we never coalesce deletions
+    );
+
+    // 3. reindex the items in the section
+    for (let i = itemIdx; i < nItemsBeforeDeletion; i++) {
+      const el = inputRefs.get(inputRefPath(sectionIdx, i + 1));
+      if (!el) continue;
+      inputRefs.set(inputRefPath(sectionIdx, i), el);
+    }
+
+    inputRefs.delete(inputRefPath(sectionIdx, nItemsBeforeDeletion - 1));
+  };
+
   const onSectionNameChanged = (idx: number, ev: Event) => {
     const name = (ev.target as HTMLInputElement).value;
     const items = ensureItemsSentinel(sections[idx].items);
@@ -184,6 +208,26 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
       case "ArrowDown":
       case "Enter":
         path = nextInputRefPath(sections, sectionIdx, itemIdx);
+        break;
+      case "Backspace":
+        // The keydown even dispatches before the input event, which means this
+        // doesn't match the backspace that makes an item become empty, it only
+        // matches a backspace on an already empty item. This is actually what
+        // we want.
+        //
+        // We filter out backspace event on the last item of a section, which
+        // is always the "New item" placeholder.
+        if (
+          sectionIdx !== undefined &&
+          itemIdx !== undefined &&
+          itemIdx != sections[sectionIdx].items.length - 1 &&
+          sections[sectionIdx].items[itemIdx].text === ""
+        ) {
+          // Focus the element before the one we just deleted.
+          path = previousInputRefPath(sections, sectionIdx, itemIdx);
+
+          deleteItem(sectionIdx, itemIdx);
+        }
         break;
       default:
         return;

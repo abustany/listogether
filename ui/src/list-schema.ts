@@ -25,4 +25,5 @@ export type ListChange =
       sectionIdx: number;
       itemIdx: number;
       checked: boolean;
-    };
+    }
+  | { type: "delete-item"; sectionIdx: number; itemIdx: number };
