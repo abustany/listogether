@@ -44,6 +44,64 @@ function appendChange<T extends ListChange["type"]>(
   }
 }
 
+// Computes a string "address" for a given input element. This is used to
+// address the HTML input elements in a map.
+function inputRefPath(sectionIdx?: number, itemIdx?: number): string {
+  if (sectionIdx === undefined) return "";
+  return `${sectionIdx}` + (itemIdx === undefined ? "" : `.${itemIdx}`);
+}
+
+function previousInputRefPath(
+  sections: Section[],
+  sectionIdx: number | undefined,
+  itemIdx: number | undefined,
+): string | undefined {
+  if (sectionIdx === undefined) return undefined; // no going up from the title
+
+  const section = sections[sectionIdx];
+  if (!section) return undefined;
+
+  if (itemIdx === undefined && sectionIdx === 0) {
+    // up to title
+    return inputRefPath();
+  }
+
+  if (itemIdx === undefined) {
+    // from section header to last item of previous section
+    const previousSection = sections[sectionIdx - 1];
+    const lastItemIdx = previousSection ? previousSection.items.length - 1 : undefined;
+    return inputRefPath(sectionIdx - 1, lastItemIdx);
+  }
+
+  if (itemIdx === 0) {
+    // up to section header
+    return inputRefPath(sectionIdx);
+  }
+
+  // up one item
+  return inputRefPath(sectionIdx, itemIdx - 1);
+}
+
+function nextInputRefPath(
+  sections: Section[],
+  sectionIdx: number | undefined,
+  itemIdx: number | undefined,
+): string | undefined {
+  if (sectionIdx === undefined) {
+    // down from title
+    return sections.length > 0 ? inputRefPath(0) : undefined;
+  }
+
+  const section = sections[sectionIdx];
+  if (!section) return undefined;
+
+  const nextItemIdx = itemIdx === undefined ? 0 : 1 + itemIdx;
+
+  if (section.items[nextItemIdx]) return inputRefPath(sectionIdx, nextItemIdx);
+  if (sectionIdx < sections.length - 1) return inputRefPath(1 + sectionIdx);
+  return undefined; // nothing after last item of last section
+}
+
 const ListLoaded: Component<{ list: ListSchema }> = (props) => {
   const { updateList } = useLists();
 
@@ -51,6 +109,12 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
 
   const [sections, setSections] = createStore<Section[]>(appendSentinels(props.list.sections));
   const changes: ListChange[] = [];
+
+  // Maps inputRefPath of each element to the element
+  const inputRefs = new Map<string, HTMLInputElement>();
+  const setInputRef = (el: HTMLInputElement, sectionIdx?: number, itemIdx?: number) => {
+    inputRefs.set(inputRefPath(sectionIdx, itemIdx), el);
+  };
 
   onCleanup(() => {
     if (props.list.name !== nameInputRef.value) {
@@ -110,6 +174,27 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
     updateItem(sectionIdx, itemIdx, checked);
   };
 
+  const onItemKeyDown = (sectionIdx: number | undefined, itemIdx: number | undefined, ev: KeyboardEvent) => {
+    let path: string | undefined;
+
+    switch (ev.key) {
+      case "ArrowUp":
+        path = previousInputRefPath(sections, sectionIdx, itemIdx);
+        break;
+      case "ArrowDown":
+      case "Enter":
+        path = nextInputRefPath(sections, sectionIdx, itemIdx);
+        break;
+      default:
+        return;
+    }
+
+    if (path === undefined) return;
+
+    ev.preventDefault();
+    inputRefs.get(path)?.focus();
+  };
+
   return (
     <div class={styles.Content}>
       <header class={styles.Header}>
@@ -117,7 +202,13 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
           <ArrowLeft size="1em" />
         </A>
         <input
-          ref={nameInputRef!}
+          ref={(el) => {
+            nameInputRef = el;
+            setInputRef(el);
+          }}
+          onKeyDown={(ev) => {
+            onItemKeyDown(undefined, undefined, ev);
+          }}
           type="text"
           class={`${styles.TransparentInput} ${styles.Name}`}
           value={props.list.name}
@@ -135,11 +226,17 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
             <section class={styles.Section}>
               <input
                 type="text"
+                ref={(el) => {
+                  setInputRef(el, sectionIndex());
+                }}
                 class={`${styles.TransparentInput} ${styles.SectionName}`}
                 placeholder={isLast() ? "New section…" : "Unnamed section"}
                 value={section.name}
                 onInput={(ev) => {
                   onSectionNameChanged(sectionIndex(), ev);
+                }}
+                onKeyDown={(ev) => {
+                  onItemKeyDown(sectionIndex(), undefined, ev);
                 }}
                 role="heading"
                 aria-level="2"
@@ -164,11 +261,17 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
                         )}
                         <input
                           type="text"
+                          ref={(el) => {
+                            setInputRef(el, sectionIndex(), itemIndex());
+                          }}
                           class={`${styles.TransparentInput} ${isLastItem() ? styles.NewItem : undefined}`}
                           placeholder="New item…"
                           value={item.text}
                           onInput={(ev) => {
                             onItemTextChanged(sectionIndex(), itemIndex(), ev);
+                          }}
+                          onKeyDown={(ev) => {
+                            onItemKeyDown(sectionIndex(), itemIndex(), ev);
                           }}
                         />
                       </li>
