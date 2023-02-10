@@ -179,14 +179,37 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
     }
   };
 
+  const appendItem = (sectionIdx: number, itemIdx: number, text: string) => {
+    const updatedItems = [...sections[sectionIdx].items];
+    const nItemsBeforeAppend = updatedItems.length;
+
+    changes.push({ type: "append-item", sectionIdx, itemIdx, text });
+
+    // Poke a "hole" in the index *before* calling setSections, so that the new
+    // ref does not override an existing value.
+    for (let i = nItemsBeforeAppend - 1; i >= itemIdx; --i) {
+      const el = inputRefs.get(inputRefPath(sectionIdx, i));
+      if (!el) continue;
+      inputRefs.set(inputRefPath(sectionIdx, 1 + i), el);
+    }
+
+    updatedItems.splice(itemIdx, 0, { text, checked: false });
+    setSections(sectionIdx, "items", updatedItems);
+  };
+
   const onItemTextChanged = (sectionIdx: number, itemIdx: number, ev: Event) => {
     const text = (ev.target as HTMLInputElement).value;
 
     setSections(sectionIdx, "items", itemIdx, "text", text);
 
     if (itemIdx === sections[sectionIdx].items.length - 1) {
-      changes.push({ type: "append-item", sectionIdx, text });
-      setSections(sectionIdx, "items", (items) => [...items, { text: "", checked: false }]);
+      appendItem(sectionIdx, itemIdx, text);
+
+      // Reset the text of the placeholder
+      setSections(sectionIdx, "items", itemIdx + 1, "text", "");
+
+      // And focus the just-spliced field
+      inputRefs.get(inputRefPath(sectionIdx, itemIdx))?.focus();
     } else {
       renameItem(sectionIdx, itemIdx, text);
     }
@@ -206,7 +229,6 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
         path = previousInputRefPath(sections, sectionIdx, itemIdx);
         break;
       case "ArrowDown":
-      case "Enter":
         path = nextInputRefPath(sections, sectionIdx, itemIdx);
         break;
       case "Backspace":
@@ -228,6 +250,12 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
 
           deleteItem(sectionIdx, itemIdx);
         }
+        break;
+      case "Enter":
+        const targetSectionIdx = sectionIdx ?? 0;
+        const targetItemIdx = itemIdx !== undefined ? 1 + itemIdx : 0;
+        appendItem(targetSectionIdx, targetItemIdx, "");
+        path = inputRefPath(targetSectionIdx, targetItemIdx);
         break;
       default:
         return;
