@@ -111,8 +111,8 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
   const changes: ListChange[] = [];
 
   // Maps inputRefPath of each element to the element
-  const inputRefs = new Map<string, HTMLInputElement>();
-  const setInputRef = (el: HTMLInputElement, sectionIdx?: number, itemIdx?: number) => {
+  const inputRefs = new Map<string, HTMLElement>();
+  const setInputRef = (el: HTMLElement, sectionIdx?: number, itemIdx?: number) => {
     inputRefs.set(inputRefPath(sectionIdx, itemIdx), el);
   };
 
@@ -166,7 +166,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
   };
 
   const onSectionNameChanged = (idx: number, ev: Event) => {
-    const name = (ev.target as HTMLInputElement).value;
+    const name = (ev.target as HTMLElement).textContent ?? "";
     const items = ensureItemsSentinel(sections[idx].items);
 
     setSections(idx, { name, items });
@@ -198,7 +198,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
   };
 
   const onItemTextChanged = (sectionIdx: number, itemIdx: number, ev: Event) => {
-    const text = (ev.target as HTMLInputElement).value;
+    const text = (ev.target as HTMLElement).textContent ?? "";
 
     setSections(sectionIdx, "items", itemIdx, "text", text);
 
@@ -321,7 +321,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
                     };
 
                     return (
-                      <li>
+                      <li class={styles.Item}>
                         {!isLastItem() && (
                           <input
                             type="checkbox"
@@ -331,21 +331,21 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
                             }}
                           />
                         )}
-                        <input
-                          type="text"
+                        <div
+                          contenteditable
                           ref={(el) => {
                             setInputRef(el, sectionIndex(), itemIndex());
                           }}
-                          class={`${styles.TransparentInput} ${isLastItem() ? styles.NewItem : undefined}`}
-                          placeholder="New item…"
-                          value={item.text}
+                          class={`${styles.TransparentInput} ${isLastItem() ? styles.NewItem : ""}`}
                           onInput={(ev) => {
                             onItemTextChanged(sectionIndex(), itemIndex(), ev);
                           }}
                           onKeyDown={(ev) => {
                             onItemKeyDown(sectionIndex(), itemIndex(), ev);
                           }}
-                        />
+                        >
+                          {/*@once*/ item.text}
+                        </div>
                       </li>
                     );
                   }}

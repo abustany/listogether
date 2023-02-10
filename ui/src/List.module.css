@@ -58,10 +58,31 @@
   line-height: 1.7rem;
 }
 
+li.Item {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: .5rem;
+}
+
+li.Item > :first-child {
+  flex: 0 0 auto;
+}
+
+li.Item > :nth-child(2) {
+  flex: 1 1 auto;
+}
+
 .NewItem {
-  margin-left: 22px;
+  margin-left: 28px;
+}
+
+.NewItem::before {
+  content: 'New item…';
+  color: #555;
+  cursor: text;
 }
 
 .Items input[type="checkbox"] {
-  margin-right: 4px;
+  margin-top: .5rem;
 }
