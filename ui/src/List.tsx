@@ -1,48 +1,11 @@
 import { Component, For, onCleanup, Match, Switch } from "solid-js";
-import { createStore } from "solid-js/store";
 import { A } from "@solidjs/router";
 
 import { useLists } from "./ListStore";
 import styles from "./List.module.css";
 import { ArrowLeft } from "./icons/ArrowLeft";
-import { Item, List as ListSchema, ListChange, Section } from "./list-schema";
-
-function ensureSentinel<T>(items: T[], isSentinel: (x: T) => boolean, makeSentinel: () => T): T[] {
-  if (items.length > 0 && isSentinel(items[items.length - 1])) return items;
-  return [...items, makeSentinel()];
-}
-
-function ensureItemsSentinel(items: Item[]): Item[] {
-  return ensureSentinel(
-    items,
-    (x) => x.text === "" && x.checked === false,
-    () => ({ text: "", checked: false }),
-  );
-}
-
-function appendSentinels(sections: Section[]): Section[] {
-  return [
-    ...sections.map((section) => ({
-      ...section,
-      items: [...section.items, { text: "", checked: false }],
-    })),
-    { name: "", items: [] },
-  ];
-}
-
-function appendChange<T extends ListChange["type"]>(
-  changes: ListChange[],
-  change: Extract<ListChange, { type: T }>,
-  canMergeIntoLastChange: (lastChange: Extract<ListChange, { type: T }>) => boolean,
-): void {
-  const lastChange = changes.length > 0 ? changes[changes.length - 1] : undefined;
-
-  if (lastChange?.type === change.type && canMergeIntoLastChange(lastChange as Extract<ListChange, { type: T }>)) {
-    changes[changes.length - 1] = change;
-  } else {
-    changes.push(change);
-  }
-}
+import { List as ListSchema, Section } from "./list-schema";
+import { createListEditor } from "./ListEditor";
 
 // Computes a string "address" for a given input element. This is used to
 // address the HTML input elements in a map.
@@ -107,8 +70,17 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
 
   let nameInputRef: HTMLInputElement;
 
-  const [sections, setSections] = createStore<Section[]>(appendSentinels(props.list.sections));
-  const changes: ListChange[] = [];
+  const {
+    sections,
+    changes,
+
+    appendSection,
+    renameSection,
+    appendItem,
+    renameItem,
+    deleteItem,
+    toggleItem,
+  } = createListEditor(props.list);
 
   // Maps inputRefPath of each element to the element
   const inputRefs = new Map<string, HTMLElement>();
@@ -124,70 +96,36 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
     updateList(props.list.id, changes);
   });
 
-  const renameSection = (idx: number, name: string) =>
-    appendChange(changes, { type: "rename-section", idx, name }, (c) => c.idx === idx);
+  function restoreCaretPositionAtNextTick(inputRefPath: string) {
+    const selectionEnd = getSelection()?.getRangeAt(0).endOffset ?? 0;
+    if (selectionEnd === undefined) return;
 
-  const renameItem = (sectionIdx: number, itemIdx: number, text: string) => {
-    appendChange(
-      changes,
-      { type: "rename-item", sectionIdx, itemIdx, text },
-      (c) => c.sectionIdx === sectionIdx && c.itemIdx === itemIdx,
-    );
-    setSections(sectionIdx, "items", itemIdx, "text", text);
-  };
+    const afterTick = () => {
+      inputRefs.get(inputRefPath)?.focus();
 
-  const updateItem = (sectionIdx: number, itemIdx: number, checked: boolean) => {
-    appendChange(
-      changes,
-      { type: "update-item", sectionIdx, itemIdx, checked },
-      (c) => c.sectionIdx === sectionIdx && c.itemIdx === itemIdx,
-    );
-    setSections(sectionIdx, "items", itemIdx, "checked", checked);
-  };
+      const newSelectionRange = getSelection()?.getRangeAt(0);
+      newSelectionRange?.setStart(newSelectionRange.endContainer, selectionEnd);
+      newSelectionRange?.setEnd(newSelectionRange.endContainer, selectionEnd);
+    };
 
-  const deleteItem = (sectionIdx: number, itemIdx: number) => {
-    // 1. delete the item from our local copy
-    const updatedItems = [...sections[sectionIdx].items];
-    const nItemsBeforeDeletion = updatedItems.length;
-    updatedItems.splice(itemIdx, 1);
-    setSections(sectionIdx, "items", updatedItems);
-
-    // 2. record the change
-    appendChange(
-      changes,
-      { type: "delete-item", sectionIdx, itemIdx },
-      (_c) => false, // we never coalesce deletions
-    );
-
-    // 3. reindex the items in the section
-    for (let i = itemIdx; i < nItemsBeforeDeletion; i++) {
-      const el = inputRefs.get(inputRefPath(sectionIdx, i + 1));
-      if (!el) continue;
-      inputRefs.set(inputRefPath(sectionIdx, i), el);
-    }
-
-    inputRefs.delete(inputRefPath(sectionIdx, nItemsBeforeDeletion - 1));
-  };
+    setTimeout(afterTick, 0);
+  }
 
   const onSectionNameChanged = (idx: number, ev: Event) => {
-    const name = (ev.target as HTMLInputElement).value ?? "";
-    const items = ensureItemsSentinel(sections[idx].items);
-
-    setSections(idx, { name, items });
+    const input = ev.target as HTMLInputElement;
+    const name = input.value ?? "";
 
     if (idx === sections.length - 1) {
-      changes.push({ type: "append-section", name });
-      setSections([...sections, { name: "", items: [] }]);
+      input.value = ""; // reset the value since a new section will be appended
+      restoreCaretPositionAtNextTick(inputRefPath(idx));
+      appendSection(name);
     } else {
       renameSection(idx, name);
     }
   };
 
-  const appendItem = (sectionIdx: number, itemIdx: number, text: string) => {
-    const updatedItems = [...sections[sectionIdx].items];
-    const nItemsBeforeAppend = updatedItems.length;
-
-    changes.push({ type: "append-item", sectionIdx, itemIdx, text });
+  const insertItem = (sectionIdx: number, itemIdx: number, text: string) => {
+    const nItemsBeforeAppend = sections[sectionIdx].items.length;
 
     // Poke a "hole" in the index *before* calling setSections, so that the new
     // ref does not override an existing value.
@@ -197,8 +135,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
       inputRefs.set(inputRefPath(sectionIdx, 1 + i), el);
     }
 
-    updatedItems.splice(itemIdx, 0, { text, checked: false });
-    setSections(sectionIdx, "items", updatedItems);
+    appendItem(sectionIdx, itemIdx, text);
   };
 
   const onItemTextChanged = (sectionIdx: number, itemIdx: number, ev: Event) => {
@@ -206,21 +143,11 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
     const text = target.textContent ?? "";
 
     if (itemIdx === sections[sectionIdx].items.length - 1) {
-      // Backup the caret position to restore it after appending the item
-      const selectionEnd = getSelection()?.getRangeAt(0).endOffset ?? 0;
-
-      appendItem(sectionIdx, itemIdx, text);
+      restoreCaretPositionAtNextTick(inputRefPath(sectionIdx, itemIdx));
+      insertItem(sectionIdx, itemIdx, text);
 
       // Reset the text of the placeholder
       target.textContent = "";
-
-      // Focus the just-spliced field
-      inputRefs.get(inputRefPath(sectionIdx, itemIdx))?.focus();
-
-      // And restore the caret position
-      const newSelectionRange = getSelection()?.getRangeAt(0);
-      newSelectionRange?.setStart(newSelectionRange.endContainer, selectionEnd);
-      newSelectionRange?.setEnd(newSelectionRange.endContainer, selectionEnd);
     } else {
       renameItem(sectionIdx, itemIdx, text);
     }
@@ -228,7 +155,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
 
   const onItemValueChanged = (sectionIdx: number, itemIdx: number, ev: Event) => {
     const checked = (ev.target as HTMLInputElement).checked;
-    updateItem(sectionIdx, itemIdx, checked);
+    toggleItem(sectionIdx, itemIdx, checked);
   };
 
   const onItemKeyDown = (sectionIdx: number | undefined, itemIdx: number | undefined, ev: KeyboardEvent) => {
@@ -246,25 +173,33 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
         // doesn't match the backspace that makes an item become empty, it only
         // matches a backspace on an already empty item. This is actually what
         // we want.
-        //
+
+        if (sectionIdx === undefined || itemIdx === undefined) return;
+
         // We filter out backspace event on the last item of a section, which
         // is always the "New item" placeholder.
-        if (
-          sectionIdx !== undefined &&
-          itemIdx !== undefined &&
-          itemIdx != sections[sectionIdx].items.length - 1 &&
-          sections[sectionIdx].items[itemIdx].text === ""
-        ) {
+        if (itemIdx != sections[sectionIdx].items.length - 1 && sections[sectionIdx].items[itemIdx].text === "") {
           // Focus the element before the one we just deleted.
           path = previousInputRefPath(sections, sectionIdx, itemIdx);
 
+          const nItemsBeforeDeletion = sections[sectionIdx].items.length;
+
           deleteItem(sectionIdx, itemIdx);
+
+          // Reindex the items in the section
+          for (let i = itemIdx; i < nItemsBeforeDeletion; i++) {
+            const el = inputRefs.get(inputRefPath(sectionIdx, i + 1));
+            if (!el) continue;
+            inputRefs.set(inputRefPath(sectionIdx, i), el);
+          }
+
+          inputRefs.delete(inputRefPath(sectionIdx, nItemsBeforeDeletion - 1));
         }
         break;
       case "Enter":
         const targetSectionIdx = sectionIdx ?? 0;
         const targetItemIdx = itemIdx !== undefined ? 1 + itemIdx : 0;
-        appendItem(targetSectionIdx, targetItemIdx, "");
+        insertItem(targetSectionIdx, targetItemIdx, "");
         path = inputRefPath(targetSectionIdx, targetItemIdx);
         break;
       default:
