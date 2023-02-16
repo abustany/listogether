@@ -127,19 +127,23 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
   const renameSection = (idx: number, name: string) =>
     appendChange(changes, { type: "rename-section", idx, name }, (c) => c.idx === idx);
 
-  const renameItem = (sectionIdx: number, itemIdx: number, text: string) =>
+  const renameItem = (sectionIdx: number, itemIdx: number, text: string) => {
     appendChange(
       changes,
       { type: "rename-item", sectionIdx, itemIdx, text },
       (c) => c.sectionIdx === sectionIdx && c.itemIdx === itemIdx,
     );
+    setSections(sectionIdx, "items", itemIdx, "text", text);
+  };
 
-  const updateItem = (sectionIdx: number, itemIdx: number, checked: boolean) =>
+  const updateItem = (sectionIdx: number, itemIdx: number, checked: boolean) => {
     appendChange(
       changes,
       { type: "update-item", sectionIdx, itemIdx, checked },
       (c) => c.sectionIdx === sectionIdx && c.itemIdx === itemIdx,
     );
+    setSections(sectionIdx, "items", itemIdx, "checked", checked);
+  };
 
   const deleteItem = (sectionIdx: number, itemIdx: number) => {
     // 1. delete the item from our local copy
@@ -200,8 +204,6 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
   const onItemTextChanged = (sectionIdx: number, itemIdx: number, ev: Event) => {
     const text = (ev.target as HTMLElement).textContent ?? "";
 
-    setSections(sectionIdx, "items", itemIdx, "text", text);
-
     if (itemIdx === sections[sectionIdx].items.length - 1) {
       appendItem(sectionIdx, itemIdx, text);
 
@@ -217,7 +219,6 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
 
   const onItemValueChanged = (sectionIdx: number, itemIdx: number, ev: Event) => {
     const checked = (ev.target as HTMLInputElement).checked;
-    setSections(sectionIdx, "items", itemIdx, "checked", checked);
     updateItem(sectionIdx, itemIdx, checked);
   };
 
