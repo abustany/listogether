@@ -202,16 +202,25 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
   };
 
   const onItemTextChanged = (sectionIdx: number, itemIdx: number, ev: Event) => {
-    const text = (ev.target as HTMLElement).textContent ?? "";
+    const target = ev.target as HTMLElement;
+    const text = target.textContent ?? "";
 
     if (itemIdx === sections[sectionIdx].items.length - 1) {
+      // Backup the caret position to restore it after appending the item
+      const selectionEnd = getSelection()?.getRangeAt(0).endOffset ?? 0;
+
       appendItem(sectionIdx, itemIdx, text);
 
       // Reset the text of the placeholder
-      setSections(sectionIdx, "items", itemIdx + 1, "text", "");
+      target.textContent = "";
 
-      // And focus the just-spliced field
+      // Focus the just-spliced field
       inputRefs.get(inputRefPath(sectionIdx, itemIdx))?.focus();
+
+      // And restore the caret position
+      const newSelectionRange = getSelection()?.getRangeAt(0);
+      newSelectionRange?.setStart(newSelectionRange.endContainer, selectionEnd);
+      newSelectionRange?.setEnd(newSelectionRange.endContainer, selectionEnd);
     } else {
       renameItem(sectionIdx, itemIdx, text);
     }
