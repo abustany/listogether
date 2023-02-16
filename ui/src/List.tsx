@@ -199,8 +199,27 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
       case "Enter":
         const targetSectionIdx = sectionIdx ?? 0;
         const targetItemIdx = itemIdx !== undefined ? 1 + itemIdx : 0;
-        insertItem(targetSectionIdx, targetItemIdx, "");
+
+        let itemText: string | undefined;
+
+        if (sectionIdx !== undefined && itemIdx !== undefined) {
+          const splitIdx = getSelection()?.getRangeAt(0).endOffset;
+          itemText = sections[sectionIdx].items[itemIdx]?.text.slice(splitIdx);
+        }
+
+        insertItem(targetSectionIdx, targetItemIdx, itemText ?? "");
         path = inputRefPath(targetSectionIdx, targetItemIdx);
+
+        if (itemText) {
+          // If we split an item in two, update the sections and the DOM
+          const previousText = sections[sectionIdx!].items[itemIdx!].text;
+          const truncatedText = previousText.slice(0, previousText.length - itemText.length);
+          renameItem(sectionIdx!, itemIdx!, truncatedText);
+
+          const el = inputRefs.get(inputRefPath(sectionIdx, itemIdx));
+          if (el) el.textContent = truncatedText;
+        }
+
         break;
       default:
         return;
