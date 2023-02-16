@@ -166,7 +166,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
   };
 
   const onSectionNameChanged = (idx: number, ev: Event) => {
-    const name = (ev.target as HTMLElement).textContent ?? "";
+    const name = (ev.target as HTMLInputElement).value ?? "";
     const items = ensureItemsSentinel(sections[idx].items);
 
     setSections(idx, { name, items });
