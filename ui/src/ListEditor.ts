@@ -38,6 +38,11 @@ export function createListEditor(list: ListSchema) {
     changes,
     sections,
 
+    // List
+    renameList(name: string) {
+      changes.push({ type: "name-change", name });
+    },
+
     // Sections
 
     appendSection(name: string) {

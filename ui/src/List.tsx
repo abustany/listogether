@@ -74,6 +74,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
     sections,
     changes,
 
+    renameList,
     appendSection,
     renameSection,
     appendItem,
@@ -90,7 +91,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
 
   onCleanup(() => {
     if (props.list.name !== nameInputRef.value) {
-      changes.push({ type: "name-change", name: nameInputRef.value });
+      renameList(nameInputRef.value);
     }
 
     updateList(props.list.id, changes);
