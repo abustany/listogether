@@ -1,5 +1,6 @@
 import { Component, For, onCleanup, Match, Switch } from "solid-js";
 import { A } from "@solidjs/router";
+import { makeEventListener } from "@solid-primitives/event-listener";
 
 import { useLists } from "./ListStore";
 import styles from "./List.module.css";
@@ -89,13 +90,16 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
     inputRefs.set(inputRefPath(sectionIdx, itemIdx), el);
   };
 
-  onCleanup(() => {
+  const save = () => {
     if (props.list.name !== nameInputRef.value) {
       renameList(nameInputRef.value);
     }
 
     updateList(props.list.id, changes);
-  });
+  };
+
+  makeEventListener(window, "blur", save);
+  onCleanup(save);
 
   function restoreCaretPositionAtNextTick(inputRefPath: string) {
     const selectionEnd = getSelection()?.getRangeAt(0).endOffset ?? 0;
