@@ -12,7 +12,7 @@ import { createListEditor } from "./ListEditor";
 // address the HTML input elements in a map.
 function inputRefPath(sectionIdx?: number, itemIdx?: number): string {
   if (sectionIdx === undefined) return "";
-  return `${sectionIdx}` + (itemIdx === undefined ? "" : `.${itemIdx}`);
+  return `${sectionIdx}${(itemIdx === undefined ? "" : `.${itemIdx}`)}`;
 }
 
 function previousInputRefPath(
@@ -183,7 +183,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
 
         // We filter out backspace event on the last item of a section, which
         // is always the "New item" placeholder.
-        if (itemIdx != sections[sectionIdx].items.length - 1 && sections[sectionIdx].items[itemIdx].text === "") {
+        if (itemIdx !== sections[sectionIdx].items.length - 1 && sections[sectionIdx].items[itemIdx].text === "") {
           // Focus the element before the one we just deleted.
           path = previousInputRefPath(sections, sectionIdx, itemIdx);
 
