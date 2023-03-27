@@ -12,7 +12,7 @@ import { createListEditor } from "./ListEditor";
 // address the HTML input elements in a map.
 function inputRefPath(sectionIdx?: number, itemIdx?: number): string {
   if (sectionIdx === undefined) return "";
-  return `${sectionIdx}${(itemIdx === undefined ? "" : `.${itemIdx}`)}`;
+  return `${sectionIdx}${itemIdx === undefined ? "" : `.${itemIdx}`}`;
 }
 
 function previousInputRefPath(
