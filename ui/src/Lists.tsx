@@ -19,6 +19,8 @@ const DeleteButton: Component<{ onDelete: () => void }> = (props) => {
 
     setConfirm(true);
   };
+  const deleteThisList = "Delete this list";
+  const clickToConfirm = "Click to confirm";
 
   return (
     <button
@@ -29,10 +31,11 @@ const DeleteButton: Component<{ onDelete: () => void }> = (props) => {
       class={`${styles.TextButton} ${styles.ToolButton} ${styles.DeleteButton} ${
         confirm() ? styles.DeleteButtonConfirm : undefined
       }`}
-      title="Delete this list"
+      title={deleteThisList}
+      aria-label={confirm() ? clickToConfirm : deleteThisList}
     >
       <Trash2 />
-      <span>Click to confirm</span>
+      <span>{clickToConfirm}</span>
     </button>
   );
 };
@@ -59,10 +62,13 @@ const ImportButton: Component<{ onImport: () => void }> = (props) => {
 
 const ListItem: Component<{ id: string; name: string; onShare: (id: string) => void }> = (props) => {
   const { deleteList } = useLists();
+  const linkId = `list-item-${props.id}`;
 
   return (
-    <li>
-      <A href={`/${props.id}`}>{props.name || "(unnamed list)"}</A>
+    <li aria-labelledby={linkId}>
+      <A id={linkId} href={`/${props.id}`}>
+        {props.name || "(unnamed list)"}
+      </A>
       <ShareButton
         onShare={() => {
           props.onShare(props.id);

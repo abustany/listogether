@@ -245,7 +245,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
   return (
     <div class={styles.Content}>
       <header class={styles.Header}>
-        <A class={styles.GoBack} href="/">
+        <A title="Back to lists" class={styles.GoBack} href="/">
           <ArrowLeft size="1em" />
         </A>
         <input
