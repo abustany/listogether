@@ -96,5 +96,9 @@ export function createListEditor(list: ListSchema) {
       );
       setSections(sectionIdx, "items", itemIdx, "checked", checked);
     },
+
+    clearChanges() {
+      changes.splice(0, changes.length);
+    },
   };
 }

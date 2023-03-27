@@ -74,6 +74,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
   const {
     sections,
     changes,
+    clearChanges,
 
     renameList,
     appendSection,
@@ -90,15 +91,18 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
     inputRefs.set(inputRefPath(sectionIdx, itemIdx), el);
   };
 
-  const save = () => {
+  const save = async () => {
     if (props.list.name !== nameInputRef.value) {
       renameList(nameInputRef.value);
     }
 
-    updateList(props.list.id, changes);
+    await updateList(props.list.id, changes);
   };
 
-  makeEventListener(window, "blur", save);
+  makeEventListener(window, "blur", async () => {
+    await save();
+    clearChanges();
+  });
   onCleanup(save);
 
   function restoreCaretPositionAtNextTick(inputRefPath: string) {
