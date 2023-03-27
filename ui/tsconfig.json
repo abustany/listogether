@@ -17,6 +17,8 @@
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
     "types": [
+      "cypress",
+      "@testing-library/cypress",
       "vite-plugin-pwa/client"
     ]
   },
