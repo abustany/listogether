@@ -92,6 +92,8 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
   };
 
   const save = async () => {
+    if (!props.list) return;
+
     if (props.list.name !== nameInputRef.value) {
       renameList(nameInputRef.value);
     }

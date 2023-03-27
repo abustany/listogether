@@ -476,6 +476,12 @@ interface IListStoreContext {
 
 export const ListStoreContext = createContext<IListStoreContext | null>(null);
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 export function ListStoreProvider(props: ParentProps) {
   const [getLists, { mutate: mutateLists, refetch: refetchLists }] = createResource<List[]>(() =>
     listStore.loadLists(),
@@ -483,7 +489,14 @@ export function ListStoreProvider(props: ParentProps) {
   const [getLastSyncTime, { refetch: refetchLastSyncTime }] = createResource<Date | undefined>(() =>
     listStore.getLastSyncTime(),
   );
-  const ensureListsAreLoaded = () => {
+  const ensureListsAreLoaded = async () => {
+    // ugly hack: unless manually refetching we don't have access to a promise
+    // for the getLists resource, so just pull it.
+    for (let i = 0; i < 10; ++i) {
+      if (getLists.latest !== undefined) break;
+      await wait(100);
+    }
+
     if (getLists.latest === undefined) throw new Error("lists are not loaded yet");
   };
   const [isSynchronizing, setIsSynchronizing] = createSignal<boolean>(false);
@@ -491,7 +504,7 @@ export function ListStoreProvider(props: ParentProps) {
     getLists,
     getLastSyncTime,
     async addList(name: string): Promise<string> {
-      ensureListsAreLoaded();
+      await ensureListsAreLoaded();
 
       const l = await listStore.addList(name);
       await refetchLists();
@@ -499,7 +512,7 @@ export function ListStoreProvider(props: ParentProps) {
       return l.id;
     },
     async deleteList(id: string): Promise<void> {
-      ensureListsAreLoaded();
+      await ensureListsAreLoaded();
 
       mutateLists((lists) => lists?.filter((l) => l.id !== id));
 
@@ -508,7 +521,7 @@ export function ListStoreProvider(props: ParentProps) {
       p.sync();
     },
     async updateList(listId: string, changes: ListChange[]): Promise<void> {
-      ensureListsAreLoaded();
+      await ensureListsAreLoaded();
 
       if (changes.length === 0) return Promise.resolve(undefined);
       // TODO: implement optimistic update?
