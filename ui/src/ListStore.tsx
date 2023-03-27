@@ -58,10 +58,7 @@ function applyChange(doc: List, c: ListChange): void {
 
 const unixTimestamp = () => Math.floor(Date.now() / 1000);
 
-async function getDeviceId(): Promise<DeviceID> {
-  let deviceId = await storage.loadDeviceId();
-  if (deviceId) return deviceId;
-
+async function fetchDeviceId(): Promise<DeviceID> {
   const res = await fetch("/api/v1/device/register", {
     method: "POST",
   });
@@ -70,10 +67,23 @@ async function getDeviceId(): Promise<DeviceID> {
     throw new Error(`unexpected HTTP status ${res.status}`);
   }
 
-  deviceId = (await res.json()) as DeviceID;
-  await storage.saveDeviceId(deviceId);
+  return (await res.json()) as DeviceID;
+}
 
-  return deviceId;
+let getDeviceIdOnce: Promise<DeviceID> | null = null;
+
+async function getDeviceId(): Promise<DeviceID> {
+  let deviceId = await storage.loadDeviceId();
+  if (deviceId) return deviceId;
+  if (getDeviceIdOnce !== null) return getDeviceIdOnce;
+
+  getDeviceIdOnce = fetchDeviceId()
+    .then((id) => storage.saveDeviceId(id).then(() => id))
+    .finally(() => {
+      getDeviceIdOnce = null;
+    });
+
+  return getDeviceIdOnce;
 }
 
 interface DeviceID {
@@ -476,12 +486,6 @@ interface IListStoreContext {
 
 export const ListStoreContext = createContext<IListStoreContext | null>(null);
 
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
 export function ListStoreProvider(props: ParentProps) {
   const [getLists, { mutate: mutateLists, refetch: refetchLists }] = createResource<List[]>(() =>
     listStore.loadLists(),
@@ -489,66 +493,83 @@ export function ListStoreProvider(props: ParentProps) {
   const [getLastSyncTime, { refetch: refetchLastSyncTime }] = createResource<Date | undefined>(() =>
     listStore.getLastSyncTime(),
   );
-  const ensureListsAreLoaded = async () => {
-    // ugly hack: unless manually refetching we don't have access to a promise
-    // for the getLists resource, so just pull it.
-    for (let i = 0; i < 10; ++i) {
-      if (getLists.latest !== undefined) break;
-      await wait(100);
+  const [isSynchronizing, setIsSynchronizing] = createSignal<boolean>(false);
+
+  const sync = async (): Promise<void> => {
+    setIsSynchronizing(true);
+
+    try {
+      await listStore.sync();
+    } catch (e) {
+      console.error("sync failed", e, (e as any).stack);
+      captureException(e);
+    } finally {
+      setIsSynchronizing(false);
+      await refetchLists();
+      await refetchLastSyncTime();
+    }
+  };
+
+  let opPromise: Promise<unknown> | null = null; // used to serialize ops
+  const queueOp = async <T extends unknown>(op: () => Promise<T>): Promise<T> => {
+    if (opPromise === null) {
+      opPromise = op();
+
+      try {
+        return (await opPromise) as T;
+      } finally {
+        opPromise = null;
+      }
     }
 
-    if (getLists.latest === undefined) throw new Error("lists are not loaded yet");
+    await opPromise;
+    return queueOp(op);
   };
-  const [isSynchronizing, setIsSynchronizing] = createSignal<boolean>(false);
+
   const p: IListStoreContext = {
     getLists,
     getLastSyncTime,
     async addList(name: string): Promise<string> {
-      await ensureListsAreLoaded();
-
-      const l = await listStore.addList(name);
-      await refetchLists();
-      p.sync();
-      return l.id;
+      return queueOp(async () => {
+        const l = await listStore.addList(name);
+        await refetchLists();
+        p.sync();
+        return l.id;
+      });
     },
     async deleteList(id: string): Promise<void> {
-      await ensureListsAreLoaded();
+      return queueOp(async () => {
+        if (getLists === undefined) await refetchLists();
 
-      mutateLists((lists) => lists?.filter((l) => l.id !== id));
+        mutateLists((lists) => lists?.filter((l) => l.id !== id));
 
-      await listStore.deleteList(id);
-      await refetchLists();
-      p.sync();
+        await listStore.deleteList(id);
+        await refetchLists();
+        p.sync();
+      });
     },
     async updateList(listId: string, changes: ListChange[]): Promise<void> {
-      await ensureListsAreLoaded();
+      return queueOp(async () => {
+        if (getLists === undefined) await refetchLists();
 
-      if (changes.length === 0) return Promise.resolve(undefined);
-      // TODO: implement optimistic update?
+        if (changes.length === 0) return;
+        // TODO: implement optimistic update?
 
-      await listStore.updateList(listId, changes);
-      await refetchLists();
-      p.sync();
+        await listStore.updateList(listId, changes);
+        await refetchLists();
+        p.sync();
+      });
     },
     sync(): void {
-      setIsSynchronizing(true);
-      listStore
-        .sync()
-        .catch((e) => {
-          console.error("sync failed", e, e.stack);
-          captureException(e);
-        })
-        .finally(() => {
-          setIsSynchronizing(false);
-          refetchLists();
-          refetchLastSyncTime();
-        });
+      queueOp(() => sync());
     },
     async importList(docId): Promise<List> {
-      const doc = await listStore.importList(docId);
-      await refetchLists();
+      return queueOp(async () => {
+        const doc = await listStore.importList(docId);
+        await refetchLists();
 
-      return doc;
+        return doc;
+      });
     },
     isSynchronizing,
   };
