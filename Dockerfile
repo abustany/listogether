@@ -10,10 +10,11 @@ RUN --mount=type=cache,target=/usr/local/share/.cache/yarn/v6 yarn && yarn build
 ###############################################################################
 # Backend build
 ###############################################################################
-FROM rust:1.66.1-slim-bullseye AS server
+FROM rust:1.68.2-slim-bullseye AS server
 
 WORKDIR /src
 COPY server/ .
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 ENV CARGO_HOME=/cargo
 COPY --from=ui /src/ui/dist /ui/dist
 RUN --mount=type=cache,target=/cargo --mount=type=cache,target=/src/target cargo build --release && mv target/release/listogether-server .
