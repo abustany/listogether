@@ -73,7 +73,7 @@ async function fetchDeviceId(): Promise<DeviceID> {
 let getDeviceIdOnce: Promise<DeviceID> | null = null;
 
 async function getDeviceId(): Promise<DeviceID> {
-  let deviceId = await storage.loadDeviceId();
+  const deviceId = await storage.loadDeviceId();
   if (deviceId) return deviceId;
   if (getDeviceIdOnce !== null) return getDeviceIdOnce;
 
@@ -325,8 +325,6 @@ class ListStore {
     let syncState = (await storage.loadSyncState(docId)) ?? Automerge.initSyncState();
 
     return new Promise((resolve, reject) => {
-      let onMessage: (ev: MessageEvent) => void;
-
       const unsafeTick = (incomingMessage: Uint8Array | null) => {
         const otherIsFinished = incomingMessage !== null && incomingMessage.byteLength === 0;
 
@@ -361,7 +359,7 @@ class ListStore {
         }
       };
 
-      onMessage = (ev) => {
+      const onMessage = (ev: MessageEvent): void => {
         const data = ev.data;
 
         if (!(data instanceof ArrayBuffer)) {
