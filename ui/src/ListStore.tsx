@@ -501,7 +501,7 @@ export function ListStoreProvider(props: ParentProps) {
     try {
       await listStore.sync();
     } catch (e) {
-      console.error("sync failed", e, (e as any).stack);
+      console.error("sync failed", e, e !== null && typeof e === "object" && "stack" in e ? e.stack : undefined);
       captureException(e);
     } finally {
       setIsSynchronizing(false);
