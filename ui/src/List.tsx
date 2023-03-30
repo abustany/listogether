@@ -10,6 +10,10 @@ import { createListEditor } from "./ListEditor";
 
 // Computes a string "address" for a given input element. This is used to
 // address the HTML input elements in a map.
+//
+// The syntax of an input ref path is SECTION_IDX for sections, or
+// SECTION_IDX.ITEM_IDX for items. All indexes are 0-based. As a special case,
+// the empty input ref path represents the note title field.
 function inputRefPath(sectionIdx?: number, itemIdx?: number): string {
   if (sectionIdx === undefined) return "";
   return `${sectionIdx}${itemIdx === undefined ? "" : `.${itemIdx}`}`;
