@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Context, Result};
+use base64::Engine as _;
+use ecdsa::signature::{Signer as _, Verifier as _};
 use rand::RngCore;
-use signature::{Signature as _Signature, Signer, Verifier};
 
 type Curve = p256::NistP256;
 type Key = ecdsa::SigningKey<Curve>;
@@ -21,20 +22,21 @@ impl DeviceID {
         rand::thread_rng().fill_bytes(&mut random_data);
 
         // 2. Sign it so that we make sure we emitted this ID
-        let sig = signing_key.as_ref().sign(&random_data);
-        assert_eq!(SIGNATURE_LEN, sig.as_bytes().len());
+        let sig: Signature = signing_key.as_ref().sign(&random_data);
+        let sig_bytes = sig.to_bytes();
+        assert_eq!(SIGNATURE_LEN, sig_bytes.len());
 
-        DeviceID([sig.as_bytes(), &random_data].concat())
+        DeviceID([sig_bytes.as_slice(), &random_data].concat())
     }
 
     pub fn from_string(signing_key: &SigningKey, s: &str) -> Result<Self> {
-        let bytes = base64::decode_config(s, base64::URL_SAFE_NO_PAD)?;
+        let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(s)?;
         if bytes.len() != SIGNATURE_LEN + ID_LEN {
             return Err(anyhow!("invalid ID size"));
         }
 
         let sig: Signature =
-            Signature::from_bytes(&bytes[0..SIGNATURE_LEN]).context("error parsing signature")?;
+            Signature::from_bytes((&bytes[0..SIGNATURE_LEN]).into()).context("error parsing signature")?;
         signing_key
             .as_ref()
             .as_ref()
@@ -57,27 +59,27 @@ impl DeviceID {
     }
 
     pub fn encode(data: &[u8]) -> String {
-        base64::encode_config(data, base64::URL_SAFE_NO_PAD)
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(data)
     }
 }
 
 impl SigningKey {
     pub fn from_string(s: &str) -> Result<Self> {
-        let sig_bytes = base64::decode(s).context("error decoding base64")?;
+        let sig_bytes = base64::engine::general_purpose::STANDARD.decode(s).context("error decoding base64")?;
         Self::from_bytes(&sig_bytes)
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        let sig = ecdsa::SigningKey::from_bytes(&bytes).context("error parsing key")?;
+        let sig = ecdsa::SigningKey::from_bytes(bytes.into()).context("error parsing key")?;
         Ok(SigningKey(sig))
     }
 
     pub fn generate() -> Self {
-        SigningKey(Key::random(rand::thread_rng()))
+        SigningKey(Key::random(&mut rand::thread_rng()))
     }
 
     pub fn to_string(&self) -> String {
-        base64::encode(self.as_ref().to_bytes())
+        base64::engine::general_purpose::STANDARD.encode(self.as_ref().to_bytes())
     }
 }
 
