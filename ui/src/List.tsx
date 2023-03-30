@@ -352,7 +352,7 @@ export const List: Component<{ id: string }> = (props) => {
         <>🕒 Loading…</>
       </Match>
       <Match when={findList() === undefined}>
-        <>🕵️ This list was not found :-/</>
+        <>&#128373;&#65039; This list was not found :-/</>
       </Match>
       <Match when={findList() !== undefined}>
         <ListLoaded list={findList()!} />
