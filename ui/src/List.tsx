@@ -83,6 +83,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
     renameList,
     appendSection,
     renameSection,
+    deleteSection,
     appendItem,
     renameItem,
     deleteItem,
@@ -189,11 +190,30 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
         // matches a backspace on an already empty item. This is actually what
         // we want.
 
-        if (sectionIdx === undefined || itemIdx === undefined) return;
+        if (sectionIdx === undefined) return;
+
+        if (itemIdx === undefined && sections[sectionIdx].items.length === 1 && sections[sectionIdx].name === "") {
+          // Focus the element before the one we just deleted.
+          path = previousInputRefPath(sections, sectionIdx, itemIdx);
+
+          const nSectionsBeforeDeletion = sections.length;
+
+          deleteSection(sectionIdx);
+
+          for (let i = sectionIdx; i < nSectionsBeforeDeletion; i++) {
+            const el = inputRefs.get(inputRefPath(1 + sectionIdx));
+            if (!el) continue;
+            inputRefs.set(inputRefPath(i), el);
+          }
+        }
 
         // We filter out backspace event on the last item of a section, which
         // is always the "New item" placeholder.
-        if (itemIdx !== sections[sectionIdx].items.length - 1 && sections[sectionIdx].items[itemIdx].text === "") {
+        if (
+          itemIdx !== undefined &&
+          itemIdx !== sections[sectionIdx].items.length - 1 &&
+          sections[sectionIdx].items[itemIdx].text === ""
+        ) {
           // Focus the element before the one we just deleted.
           path = previousInputRefPath(sections, sectionIdx, itemIdx);
 

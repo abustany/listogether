@@ -20,6 +20,8 @@ function describeChange(c: ListChange): string {
       return `Add new section ${c.name}`;
     case "rename-section":
       return `Rename section #${1 + c.idx} to ${c.name}`;
+    case "delete-section":
+      return `Delete section #${1 + c.idx}`;
     case "append-item":
       return `Add new item ${c.text} at index #${1 + c.itemIdx} to section #${1 + c.sectionIdx}`;
     case "rename-item":
@@ -41,6 +43,9 @@ function applyChange(doc: List, c: ListChange): void {
       return;
     case "rename-section":
       doc.sections[c.idx].name = c.name;
+      return;
+    case "delete-section":
+      doc.sections.splice(c.idx, 1);
       return;
     case "append-item":
       doc.sections[c.sectionIdx].items.splice(c.itemIdx, 0, { text: c.text, checked: false });

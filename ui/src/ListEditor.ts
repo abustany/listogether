@@ -57,6 +57,18 @@ export function createListEditor(list: ListSchema) {
       setSections(idx, "name", name);
     },
 
+    deleteSection(idx: number) {
+      appendChange(
+        changes,
+        { type: "delete-section", idx },
+        (_c) => false, // we never coalesce deletions
+      );
+
+      const updatedSections = [...sections];
+      updatedSections.splice(idx, 1);
+      setSections(updatedSections);
+    },
+
     // Items
 
     appendItem(sectionIdx: number, itemIdx: number, text: string) {

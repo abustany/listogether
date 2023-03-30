@@ -18,6 +18,7 @@ export type ListChange =
   | { type: "name-change"; name: string }
   | { type: "append-section"; name: string }
   | { type: "rename-section"; idx: number; name: string }
+  | { type: "delete-section"; idx: number }
   | { type: "append-item"; sectionIdx: number; itemIdx: number; text: string }
   | { type: "rename-item"; sectionIdx: number; itemIdx: number; text: string }
   | {
