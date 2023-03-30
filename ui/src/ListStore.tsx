@@ -578,6 +578,9 @@ export function ListStoreProvider(props: ParentProps) {
   makeEventListener(window, "focus", () => {
     p.sync();
   });
+  setTimeout(() => {
+    p.sync();
+  }, 0);
 
   return <ListStoreContext.Provider value={p}>{props.children}</ListStoreContext.Provider>;
 }
