@@ -5,6 +5,7 @@ use clap::{Parser, Subcommand};
 use tracing_subscriber;
 
 mod device_id;
+mod dump_doc;
 mod liststore;
 mod multilock;
 mod serve;
@@ -35,6 +36,12 @@ enum Commands {
         /// Base directory where lists are stored
         #[arg(long)]
         lists_dir: String,
+    },
+
+    /// Dump a document as JSON
+    DumpDocument {
+        #[arg(long)]
+        path: String,
     },
 }
 
@@ -70,6 +77,12 @@ async fn main() -> Result<()> {
 
             serve::serve(&listen_address, &lists_dir, &id_signing_key).await?;
 
+            Ok(())
+        }
+        Commands::DumpDocument{
+            path,
+        } => {
+            dump_doc::dump_doc(&path)?;
             Ok(())
         }
     }
