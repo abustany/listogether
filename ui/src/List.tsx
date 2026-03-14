@@ -3,10 +3,10 @@ import { A } from "@solidjs/router";
 import { makeEventListener } from "@solid-primitives/event-listener";
 
 import { useLists } from "./ListStore";
-import styles from "./List.module.css";
 import { ArrowLeft } from "./icons/ArrowLeft";
 import { List as ListSchema, Section } from "./list-schema";
 import { createListEditor } from "./ListEditor";
+import { cn } from "./cn";
 
 // Computes a string "address" for a given input element. This is used to
 // address the HTML input elements in a map.
@@ -69,6 +69,8 @@ function nextInputRefPath(
   if (sectionIdx < sections.length - 1) return inputRefPath(1 + sectionIdx);
   return undefined; // nothing after last item of last section
 }
+
+const transparentInput = "m-0 text-[inherit] border-0 outline-0 bg-inherit";
 
 const ListLoaded: Component<{ list: ListSchema }> = (props) => {
   const { updateList } = useLists();
@@ -267,9 +269,9 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
   };
 
   return (
-    <div class={styles.Content}>
-      <header class={styles.Header}>
-        <A title="Back to lists" class={styles.GoBack} href="/">
+    <div class="flex-1 max-w-[40rem] p-4 bg-white flex flex-col gap-[0.8rem] overflow-auto">
+      <header class="flex items-center gap-[0.2rem] text-[1.5rem] [&>*]:h-[1em] [&>*]:min-w-0">
+        <A title="Back to lists" href="/">
           <ArrowLeft size="1em" />
         </A>
         <input
@@ -281,7 +283,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
             onItemKeyDown(undefined, undefined, ev);
           }}
           type="text"
-          class={`${styles.TransparentInput} ${styles.Name}`}
+          class={cn(transparentInput, "flex-1 p-[0.3rem] pb-2 border-b border-b-[#999]")}
           value={props.list.name}
           placeholder="List name"
         />
@@ -294,13 +296,13 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
           };
 
           return (
-            <section class={styles.Section}>
+            <section class="flex-none ml-6 flex flex-col">
               <input
                 type="text"
                 ref={(el) => {
                   setInputRef(el, sectionIndex());
                 }}
-                class={`${styles.TransparentInput} ${styles.SectionName}`}
+                class={cn(transparentInput, "text-[1.2em] font-bold")}
                 placeholder={isLast() ? "New section…" : "Unnamed section"}
                 value={section.name}
                 onInput={(ev) => {
@@ -312,7 +314,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
                 role="heading"
                 aria-level="2"
               />
-              <ul class={styles.Items}>
+              <ul class="m-0 p-0 pl-2 list-none leading-[1.7rem]">
                 <For each={section.items}>
                   {(item, itemIndex) => {
                     const isLastItem = () => {
@@ -320,10 +322,11 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
                     };
 
                     return (
-                      <li class={styles.Item}>
+                      <li class="flex flex-row items-start gap-2">
                         {!isLastItem() && (
                           <input
                             type="checkbox"
+                            class="flex-none mt-2"
                             checked={item.checked}
                             onChange={(ev) => {
                               onItemValueChanged(sectionIndex(), itemIndex(), ev);
@@ -335,7 +338,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
                           ref={(el) => {
                             setInputRef(el, sectionIndex(), itemIndex());
                           }}
-                          class={`${styles.TransparentInput} ${isLastItem() ? styles.NewItem : ""}`}
+                          class={cn(transparentInput, "flex-1", isLastItem() && "new-item")}
                           onInput={(ev) => {
                             onItemTextChanged(sectionIndex(), itemIndex(), ev);
                           }}

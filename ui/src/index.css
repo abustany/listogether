@@ -1,23 +1,70 @@
-body,
-html {
-  overflow: hidden;
-  box-sizing: border-box;
-  width: 100%;
+@import "tailwindcss";
+
+@layer base {
+  html,
+  body {
+    overflow: hidden;
+    width: 100%;
+  }
+
+  body {
+    font: caption;
+    font-size: 12pt;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  button {
+    margin: 0;
+    font-size: inherit;
+  }
 }
 
-body {
-  margin: 0;
-  font: caption;
-  font-size: 12pt;
+/* Route transition classes for solid-transition-group */
+@layer components {
+  .route-enter-from {
+    transform: translate(100vw);
+  }
+  .route-enter-to {
+    transform: translate(0);
+  }
+  .route-exit-from {
+    transform: translate(0);
+  }
+  .route-exit-to {
+    transform: translate(-100vw);
+  }
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
-  display: inline-block;
+/* Delete button transitions (complex multi-property with delays + child selectors) */
+@layer components {
+  .delete-btn {
+    transition:
+      color 0s,
+      background-color 0.3s linear;
+    transition-delay: 0.5s;
+  }
+  .delete-btn > span {
+    transition: max-width 0.5s;
+  }
+  .delete-btn-confirm {
+    transition-duration: 0s, 0s;
+    transition-delay: 0s;
+  }
 }
 
-button {
-  margin: 0;
-  font-size: inherit;
+/* NewItem placeholder pseudo-element */
+@layer components {
+  .new-item {
+    margin-left: 28px;
+  }
+  .new-item::before {
+    content: "New item\2026";
+    color: #555;
+    cursor: text;
+  }
 }

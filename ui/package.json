@@ -15,9 +15,11 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "4.2.1",
     "@types/uuid": "9.0.1",
     "feather-icons": "^4.29.0",
     "husky": "8.0.3",
+    "tailwindcss": "4.2.1",
     "vite": "8.0.0",
     "vite-plugin-pwa": "1.2.0",
     "vite-plugin-solid": "2.11.11",
@@ -32,10 +34,12 @@
     "@solid-primitives/event-listener": "2.4.5",
     "@solidjs/router": "0.15.4",
     "base64-js": "^1.5.1",
+    "clsx": "2.1.1",
     "date-fns": "^2.29.3",
     "idb": "^7.1.1",
     "solid-js": "1.9.11",
     "solid-transition-group": "0.2.2",
+    "tailwind-merge": "3.5.0",
     "uuid": "^9.0.0"
   }
 }

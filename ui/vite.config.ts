@@ -1,10 +1,12 @@
 import { defineConfig } from "vite";
+import tailwindcss from "@tailwindcss/vite";
 import wasm from "vite-plugin-wasm";
 import solidPlugin from "vite-plugin-solid";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   plugins: [
+    tailwindcss(),
     wasm(),
     solidPlugin(),
     VitePWA({

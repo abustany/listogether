@@ -2,7 +2,6 @@ import { createUniqueId, ParentComponent } from "solid-js";
 import { Portal } from "solid-js/web";
 
 import { X } from "./icons/X";
-import styles from "./Modal.module.css";
 
 export const Modal: ParentComponent<{
   title: string;
@@ -11,22 +10,31 @@ export const Modal: ParentComponent<{
   const titleId = createUniqueId();
   return (
     <Portal mount={document.getElementById("portal")!}>
-      <div class={styles.ModalOverlay} />
-      <div class={styles.ModalOverlayBackdrop} />
-      <div class={styles.ModalContainer} onclick={props.onClose} role="dialog" aria-labelledby={titleId}>
+      <div class="fixed top-0 left-0 w-screen h-screen bg-[#333] opacity-70" />
+      <div class="fixed top-0 left-0 w-screen h-screen backdrop-blur-[2px]" />
+      <div
+        class="fixed top-0 left-0 w-screen h-screen flex flex-col justify-center items-center"
+        onclick={props.onClose}
+        role="dialog"
+        aria-labelledby={titleId}
+      >
         <div
-          class={styles.Modal}
+          class="relative flex-none bg-white max-w-[500px] rounded-[10px] p-4 m-4 flex flex-col"
           onclick={(ev) => {
             ev.stopPropagation();
           }}
         >
-          <header class={styles.ModalHeader} id={titleId}>
+          <header class="flex-none mb-2 text-[1.3rem] font-bold" id={titleId}>
             {props.title}
           </header>
-          <button onclick={props.onClose} class={styles.ModalClose} title="Close">
+          <button
+            onclick={props.onClose}
+            class="absolute top-2.5 right-2.5 text-inherit border-0 bg-transparent cursor-pointer"
+            title="Close"
+          >
             <X />
           </button>
-          <div class={styles.ModalContent}>{props.children}</div>
+          <div class="flex-1 flex flex-col gap-2 items-start">{props.children}</div>
         </div>
       </div>
     </Portal>

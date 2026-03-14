@@ -3,7 +3,6 @@ import { formatDistance } from "date-fns";
 
 import { useLists } from "./ListStore";
 import { createSlowBoolSignal } from "./slow-bool-signal";
-import styles from "./SyncStatus.module.css";
 
 export const SyncStatus: Component = () => {
   const { getLastSyncTime, isSynchronizing, sync } = useLists();
@@ -27,7 +26,7 @@ export const SyncStatus: Component = () => {
   );
 
   return (
-    <div class={styles.SyncStatus}>
+    <div class="flex flex-row flex-wrap justify-center gap-[0.1rem] text-[10pt]">
       <Switch>
         <Match when={slowIsSynchronizing()}>Synchronizing…</Match>
         <Match when={getLastSyncTime() !== undefined}>
@@ -35,7 +34,9 @@ export const SyncStatus: Component = () => {
         </Match>
       </Switch>
       <Show when={!slowIsSynchronizing()}>
-        <button onclick={sync}>Synchronize now</button>
+        <button class="border-0 bg-transparent text-inherit underline cursor-pointer" onclick={sync}>
+          Synchronize now
+        </button>
       </Show>
     </div>
   );

@@ -4,7 +4,6 @@ import { Transition } from "solid-transition-group";
 
 import { List } from "./List";
 import { Lists } from "./Lists";
-import styles from "./App.module.css";
 import { Import } from "./Import";
 import { ListStoreProvider } from "./ListStore";
 import { UpdateIndicator } from "./UpdateIndicator";
@@ -13,21 +12,25 @@ import { UpdateIndicator } from "./UpdateIndicator";
 // that gets replaced must have an absolute position (ie not be in the flow) to
 // animate properly.
 const RouteContainer: ParentComponent = (props) => {
-  return <div class={styles.RouteContainer}>{props.children}</div>;
+  return (
+    <div class="absolute left-0 top-0 w-screen h-screen p-[env(safe-area-inset-top)_env(safe-area-inset-right)_env(safe-area-inset-bottom)_env(safe-area-inset-left)] transition-transform duration-[0.6s] flex justify-center">
+      {props.children}
+    </div>
+  );
 };
 
 const forwardRouteTransitions = {
-  enterClass: styles.RouteEnterFrom,
-  enterToClass: styles.RouteEnterTo,
-  exitClass: styles.RouteExitFrom,
-  exitToClass: styles.RouteExitTo,
+  enterClass: "route-enter-from",
+  enterToClass: "route-enter-to",
+  exitClass: "route-exit-from",
+  exitToClass: "route-exit-to",
 };
 
 const reverseRouteTransitions = {
-  enterClass: styles.RouteExitTo,
-  enterToClass: styles.RouteEnterTo,
-  exitClass: styles.RouteExitFrom,
-  exitToClass: styles.RouteEnterFrom,
+  enterClass: "route-exit-to",
+  enterToClass: "route-enter-to",
+  exitClass: "route-exit-from",
+  exitToClass: "route-enter-from",
 };
 
 const Root: Component<RouteSectionProps<unknown>> = (props) => {
@@ -48,7 +51,7 @@ const Root: Component<RouteSectionProps<unknown>> = (props) => {
 
 const App: Component = () => {
   return (
-    <div class={styles.App}>
+    <div class="relative h-screen w-screen bg-[#ddd]">
       <Router root={Root}>
         <Route
           path="/import/:id"
