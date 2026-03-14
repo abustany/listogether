@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "playwright test --ui",
     "format": "oxfmt --write tests fixtures playwright.config.ts",
-    "lint": "oxlint tests fixtures"
+    "lint": "oxlint tests fixtures",
+    "test": "playwright test"
   },
   "dependencies": {
     "@playwright/test": "1.56.1"
