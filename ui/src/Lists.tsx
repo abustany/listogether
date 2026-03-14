@@ -42,7 +42,11 @@ const DeleteButton: Component<{ onDelete: () => void }> = (props) => {
 
 const ShareButton: Component<{ onShare: () => void }> = (props) => {
   return (
-    <button onclick={props.onShare} class={`${styles.TextButton} ${styles.ToolButton}`} title="Share this list">
+    <button
+      onclick={props.onShare}
+      class={`${styles.TextButton} ${styles.ToolButton}`}
+      title="Share this list"
+    >
       <Share2 />
     </button>
   );
@@ -60,7 +64,11 @@ const ImportButton: Component<{ onImport: () => void }> = (props) => {
   );
 };
 
-const ListItem: Component<{ id: string; name: string; onShare: (id: string) => void }> = (props) => {
+const ListItem: Component<{
+  id: string;
+  name: string;
+  onShare: (id: string) => void;
+}> = (props) => {
   const { deleteList } = useLists();
   const linkId = `list-item-${props.id}`;
 
@@ -83,9 +91,12 @@ const ListItem: Component<{ id: string; name: string; onShare: (id: string) => v
   );
 };
 
-const listImportUrl = (listId: string) => `${window.location.origin}/import/${listId}`;
+const listImportUrl = (listId: string) =>
+  `${window.location.origin}/import/${listId}`;
 
-const ShareModal: Component<{ listId: string; onClose: () => void }> = (props) => {
+const ShareModal: Component<{ listId: string; onClose: () => void }> = (
+  props,
+) => {
   const importURL = listImportUrl(props.listId);
   const [copied, setCopied] = createSignal(false);
   const onLinkClick = async () => {
@@ -97,9 +108,13 @@ const ShareModal: Component<{ listId: string; onClose: () => void }> = (props) =
 
   return (
     <Modal title="Share list" onClose={props.onClose}>
-      Share the following link to give read and write access to this list. Click on the link to copy it to the
-      clipboard.
-      <div class={styles.ListLink} onclick={onLinkClick}>
+      Share the following link to give read and write access to this list. Click
+      on the link to copy it to the clipboard.
+      <div
+        class={styles.ListLink}
+        onclick={onLinkClick}
+        aria-label="List share URL"
+      >
         {importURL}
       </div>
       <Show when={copied()}>Link copied to clipboard!</Show>
@@ -157,12 +172,20 @@ export const Lists: Component = () => {
 
   return (
     <div class={styles.Wrapper}>
-      <ul class={styles.Lists}>
-        <For each={getLists()} fallback={<li class={styles.Fallback}>No list yet!</li>}>
-          {(item) => <ListItem id={item.id} name={item.name} onShare={onShareList} />}
+      <ul class={styles.Lists} aria-label="Lists">
+        <For
+          each={getLists()}
+          fallback={<li class={styles.Fallback}>No list yet!</li>}
+        >
+          {(item) => (
+            <ListItem id={item.id} name={item.name} onShare={onShareList} />
+          )}
         </For>
         <li>
-          <button onclick={onAddNewList} class={`${styles.TextButton} ${styles.AddButton}`}>
+          <button
+            onclick={onAddNewList}
+            class={`${styles.TextButton} ${styles.AddButton}`}
+          >
             <Plus size="1em" />
             New list…
           </button>

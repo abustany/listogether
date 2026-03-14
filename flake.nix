@@ -27,6 +27,12 @@
         pkgs = import nixpkgs {
           inherit system overlays;
         };
+        playwright-browsers = pkgs.playwright-driver.browsers.override {
+          withChromium = false;
+          withFirefox = false;
+          withWebkit = false;
+          withFfmpeg = false;
+        };
         rust = pkgs.rust-bin.fromRustupToolchainFile ./server/rust-toolchain.toml;
         rev = if (self ? shortRev) then self.shortRev else "dev";
       in
@@ -36,8 +42,12 @@
           buildInputs = [
             pkgs.nodejs
             pkgs.yarn
+            playwright-browsers
             rust
           ];
+
+          PLAYWRIGHT_BROWSERS_PATH = playwright-browsers;
+          PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
         };
       }
     );
