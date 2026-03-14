@@ -2,7 +2,7 @@
   description = "Listogether";
 
   inputs = {
-    nixpkgs.url      = "github:NixOS/nixpkgs/nixos-23.11";
+    nixpkgs.url      = "github:NixOS/nixpkgs/nixos-25.11";
     flake-utils.url  = "github:numtide/flake-utils";
   };
 
@@ -19,7 +19,7 @@
       {
         devShells.default = pkgs.mkShell {
           buildInputs = [
-            pkgs.nodejs_18
+            pkgs.nodejs
             pkgs.yarn
           ];
         };
