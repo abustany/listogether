@@ -16,11 +16,7 @@
     "skipLibCheck": true,
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
-    "types": [
-      "cypress",
-      "@testing-library/cypress",
-      "vite-plugin-pwa/client"
-    ]
+    "types": ["vite-plugin-pwa/client"]
   },
   "include": ["src"]
 }

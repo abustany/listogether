@@ -5,10 +5,8 @@ FROM node:19.4.0-bullseye-slim AS ui
 
 WORKDIR /src/ui
 COPY ui/ .
-ENV CYPRESS_CACHE_FOLDER=/var/cache/cypress
 RUN \
   --mount=type=cache,target=/usr/local/share/.cache/yarn/v6 \
-  --mount=type=cache,target=/var/cache/cypress \
   yarn && yarn build
 
 ###############################################################################

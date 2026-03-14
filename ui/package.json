@@ -9,17 +9,14 @@
     "check": "rome ci src",
     "dev": "vite",
     "icons": "./scripts/make-icons.js && rome format --write src/icons && rome check --apply-suggested src/icons",
-    "format": "rome format --write src cypress cypress.config.ts scripts vite.config.ts",
+    "format": "rome format --write src scripts vite.config.ts",
     "lint": "rome check src",
     "prepare": "cd .. && husky install ui/.husky",
     "preview": "vite preview",
     "test": "vitest"
   },
   "devDependencies": {
-    "@testing-library/cypress": "^9.0.0",
-    "@this-dot/cypress-indexeddb": "^2.0.1",
     "@types/uuid": "9.0.1",
-    "cypress": "12.9.0",
     "feather-icons": "^4.29.0",
     "husky": "8.0.3",
     "jsdom": "21.1.1",
