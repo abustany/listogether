@@ -5,7 +5,11 @@
   "type": "module",
   "devDependencies": {
     "oxfmt": "^0.40.0",
-    "oxlint": "^1.55.0"
+    "oxlint": "^1.55.0",
+    "typescript": "5.9.3"
   },
-  "workspaces": ["e2e", "ui"]
+  "workspaces": [
+    "e2e",
+    "ui"
+  ]
 }
