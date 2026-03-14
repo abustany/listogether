@@ -88,7 +88,7 @@ function readGitObject(sha) {
 }
 
 /**
- * Runs rome format on the given data.
+ * Runs oxfmt on the given data.
  *
  * filename is only used to produce better diagnostics.
  *
@@ -97,11 +97,7 @@ function readGitObject(sha) {
  * @return {string} - the formatted data
  */
 function formatFile(filename, data) {
-  const res = exec("rome", ["format", "--stdin-file-path", filename], { input: data });
-
-  // for some reason, running rome format with input via STDIN appends an extra
-  // newline at the end of the data, remove it.
-  return res.replace(/(\r?\n)+$/, "$1");
+  return exec("oxfmt", ["--stdin-filepath", filename], { input: data });
 }
 
 /*****************************************************************************/

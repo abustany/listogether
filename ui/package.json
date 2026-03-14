@@ -6,11 +6,11 @@
   "scripts": {
     "build": "tsc && vite build",
     "check-staged": "./scripts/check-format.js",
-    "check": "rome ci src",
+    "check": "oxlint src && oxfmt --check src",
     "dev": "vite",
-    "icons": "./scripts/make-icons.js && rome format --write src/icons && rome check --apply-suggested src/icons",
-    "format": "rome format --write src scripts vite.config.ts",
-    "lint": "rome check src",
+    "icons": "./scripts/make-icons.js && oxfmt --write src/icons && oxlint --fix src/icons",
+    "format": "oxfmt --write src scripts vite.config.ts",
+    "lint": "oxlint src",
     "prepare": "cd .. && husky install ui/.husky",
     "preview": "vite preview",
     "test": "vitest"
@@ -20,7 +20,6 @@
     "feather-icons": "^4.29.0",
     "husky": "8.0.3",
     "jsdom": "21.1.1",
-    "rome": "12.0.0",
     "typescript": "5.0.2",
     "vite": "4.2.1",
     "vite-plugin-pwa": "0.14.7",

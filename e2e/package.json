@@ -5,15 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "playwright test --ui",
-    "format": "rome format --write tests fixtures playwright.config.ts",
-    "lint": "rome check tests fixtures"
+    "format": "oxfmt --write tests fixtures playwright.config.ts",
+    "lint": "oxlint tests fixtures"
   },
   "dependencies": {
     "@playwright/test": "1.56.1"
   },
   "devDependencies": {
     "@tsconfig/node22": "22.0.5",
-    "@types/node": "22.19.15",
-    "rome": "12.0.0"
+    "@types/node": "22.19.15"
   }
 }

@@ -1,0 +1,11 @@
+{
+  "name": "listogether",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "devDependencies": {
+    "oxfmt": "^0.40.0",
+    "oxlint": "^1.55.0"
+  },
+  "workspaces": ["e2e", "ui"]
+}

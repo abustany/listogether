@@ -6,7 +6,7 @@
 
   display: flex;
   flex-direction: column;
-  gap: .8rem;
+  gap: 0.8rem;
 
   overflow: auto;
 }
@@ -14,7 +14,7 @@
 .Header {
   display: flex;
   align-items: center;
-  gap: .2rem;
+  gap: 0.2rem;
   font-size: 1.5rem;
 }
 
@@ -33,7 +33,7 @@
 
 .Name {
   flex: 1 1 auto;
-  padding: .3rem;
+  padding: 0.3rem;
   border-bottom: 1px solid #999;
 }
 
@@ -62,7 +62,7 @@ li.Item {
   display: flex;
   flex-direction: row;
   align-items: flex-start;
-  gap: .5rem;
+  gap: 0.5rem;
 }
 
 li.Item > :first-child {
@@ -78,11 +78,11 @@ li.Item > :nth-child(2) {
 }
 
 .NewItem::before {
-  content: 'New item…';
+  content: "New item…";
   color: #555;
   cursor: text;
 }
 
 .Items input[type="checkbox"] {
-  margin-top: .5rem;
+  margin-top: 0.5rem;
 }

@@ -15,7 +15,7 @@ export const Import: Component<{ id: string }> = (props) => {
           <Match when={importedDoc.loading}>Importing list…</Match>
           <Match when={importedDoc.state === "errored"}>Woops, something went wrong during the import :-/</Match>
           <Match when={importedDoc.state === "ready"}>
-            <p>Successfully imported list «{importedDoc()?.name!}» 🥳</p>
+            <p>Successfully imported list «{importedDoc()?.name ?? ""}» 🥳</p>
             <p>
               <A class={styles.Link} href="/">
                 <Check />

@@ -96,7 +96,7 @@ const ShareModal: Component<{ listId: string; onClose: () => void }> = (props) =
     try {
       await navigator.clipboard.writeText(importURL);
       setCopied(true);
-    } catch (_ignored) {}
+    } catch {}
   };
 
   return (

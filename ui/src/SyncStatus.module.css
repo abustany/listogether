@@ -3,7 +3,7 @@
   flex-direction: row;
   flex-wrap: wrap;
   justify-content: center;
-  gap: .1rem;
+  gap: 0.1rem;
   font-size: 10pt;
 }
 
