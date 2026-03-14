@@ -13,12 +13,7 @@ export const Modal: ParentComponent<{
     <Portal mount={document.getElementById("portal")!}>
       <div class={styles.ModalOverlay} />
       <div class={styles.ModalOverlayBackdrop} />
-      <div
-        class={styles.ModalContainer}
-        onclick={props.onClose}
-        role="dialog"
-        aria-labelledby={titleId}
-      >
+      <div class={styles.ModalContainer} onclick={props.onClose} role="dialog" aria-labelledby={titleId}>
         <div
           class={styles.Modal}
           onclick={(ev) => {
@@ -28,11 +23,7 @@ export const Modal: ParentComponent<{
           <header class={styles.ModalHeader} id={titleId}>
             {props.title}
           </header>
-          <button
-            onclick={props.onClose}
-            class={styles.ModalClose}
-            title="Close"
-          >
+          <button onclick={props.onClose} class={styles.ModalClose} title="Close">
             <X />
           </button>
           <div class={styles.ModalContent}>{props.children}</div>

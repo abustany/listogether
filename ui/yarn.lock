@@ -1508,12 +1508,12 @@
     "@sentry/types" "7.45.0"
     tslib "^1.9.3"
 
-"@solid-primitives/event-listener@2.2.9":
-  version "2.2.9"
-  resolved "https://registry.yarnpkg.com/@solid-primitives/event-listener/-/event-listener-2.2.9.tgz#c7f20dcd735d26f9916e175a1fc67b28a59f1549"
-  integrity sha512-8HdsLig2P+X9McW4b6f42sZrJGnkq8nlXm3TiIx7vyS3c9r0j8VH/6x85NTixXfx7fr7KkrWfW7MqCiJkWVXLg==
+"@solid-primitives/event-listener@2.4.5":
+  version "2.4.5"
+  resolved "https://registry.yarnpkg.com/@solid-primitives/event-listener/-/event-listener-2.4.5.tgz#6112b6ee3bfbe5ea2c78a7331519f7b8b2e837e7"
+  integrity sha512-nwRV558mIabl4yVAhZKY8cb6G+O1F0M6Z75ttTu5hk+SxdOnKSGj+eetDIu7Oax1P138ZdUU01qnBPR8rnxaEA==
   dependencies:
-    "@solid-primitives/utils" "^5.5.1"
+    "@solid-primitives/utils" "^6.4.0"
 
 "@solid-primitives/refs@^1.0.1":
   version "1.0.1"
@@ -1532,10 +1532,15 @@
   resolved "https://registry.yarnpkg.com/@solid-primitives/utils/-/utils-5.5.2.tgz#873276d5bfedf7709d6268b1bee4f1a0897e85fa"
   integrity sha512-L52ig3eHKU6CqbPCKJIb4lweBuINHBOERcE1duApyKozEN8+zCqEKwD1Qo9ljKeEzJTBGWClxNpwEiNTUWTGvg==
 
-"@solidjs/router@0.8.2":
-  version "0.8.2"
-  resolved "https://registry.yarnpkg.com/@solidjs/router/-/router-0.8.2.tgz#3dd82fd052cb8654a2948989ed3e17cf6b25b04d"
-  integrity sha512-gUKW+LZqxtX6y/Aw6JKyy4gQ9E7dLqp513oB9pSYJR1HM5c56Pf7eijzyXX+b3WuXig18Cxqah4tMtF0YGu80w==
+"@solid-primitives/utils@^6.4.0":
+  version "6.4.0"
+  resolved "https://registry.yarnpkg.com/@solid-primitives/utils/-/utils-6.4.0.tgz#45257521d258cffd563b40d62163058af75496ae"
+  integrity sha512-AeGTBg8Wtkh/0s+evyLtP8piQoS4wyqqQaAFs2HJcFMMjYAtUgo+ZPduRXLjPlqKVc2ejeR544oeqpbn8Egn8A==
+
+"@solidjs/router@0.15.4":
+  version "0.15.4"
+  resolved "https://registry.yarnpkg.com/@solidjs/router/-/router-0.15.4.tgz#e2b2d797541dcbdc36641e5f610f93ab4fa11c8a"
+  integrity sha512-WOpgg9a9T638cR+5FGbFi/IV4l2FpmBs1GpIMSPa0Ce9vyJN7Wts+X2PqMf9IYn0zUj2MlSJtm1gp7/HI/n5TQ==
 
 "@surma/rollup-plugin-off-main-thread@^2.2.3":
   version "2.2.3"
@@ -3307,6 +3312,16 @@ serialize-javascript@^4.0.0:
   dependencies:
     randombytes "^2.1.0"
 
+seroval-plugins@~1.5.0:
+  version "1.5.1"
+  resolved "https://registry.yarnpkg.com/seroval-plugins/-/seroval-plugins-1.5.1.tgz#a0ebcaf43cb06ae0f33c777ebbd5e97223887ec6"
+  integrity sha512-4FbuZ/TMl02sqv0RTFexu0SP6V+ywaIe5bAWCCEik0fk17BhALgwvUDVF7e3Uvf9pxmwCEJsRPmlkUE6HdzLAw==
+
+seroval@~1.5.0:
+  version "1.5.1"
+  resolved "https://registry.yarnpkg.com/seroval/-/seroval-1.5.1.tgz#e35a01bcb8172ddcef12ef424a170f3ad93f64f0"
+  integrity sha512-OwrZRZAfhHww0WEnKHDY8OM0U/Qs8OTfIDWhUD4BLpNJUfXK4cGmjiagGze086m+mhI+V2nD0gfbHEnJjb9STA==
+
 side-channel@^1.0.4:
   version "1.0.4"
   resolved "https://registry.yarnpkg.com/side-channel/-/side-channel-1.0.4.tgz#efce5c8fdc104ee751b25c58d4290011fa5ea2cf"
@@ -3329,12 +3344,14 @@ slice-ansi@^5.0.0:
     ansi-styles "^6.0.0"
     is-fullwidth-code-point "^4.0.0"
 
-solid-js@1.6.16:
-  version "1.6.16"
-  resolved "https://registry.yarnpkg.com/solid-js/-/solid-js-1.6.16.tgz#50605fb53bb8ccafae28b884ca0f060809ccf6ba"
-  integrity sha512-Ng4CahvLlpGA3BXIMiiMdwhI8WpObZ8gXqm97GCKR4+MpnODs6Pdpco+tmVCY/4ZDFaEKDxz7WRLAAdoXdlY7w==
+solid-js@1.9.11:
+  version "1.9.11"
+  resolved "https://registry.yarnpkg.com/solid-js/-/solid-js-1.9.11.tgz#1d36c755d10b7d5f7d016d2421c7e39b5b84f99e"
+  integrity sha512-WEJtcc5mkh/BnHA6Yrg4whlF8g6QwpmXXRg4P2ztPmcKeHHlH4+djYecBLhSpecZY2RRECXYUwIc/C2r3yzQ4Q==
   dependencies:
     csstype "^3.1.0"
+    seroval "~1.5.0"
+    seroval-plugins "~1.5.0"
 
 solid-refresh@^0.5.0:
   version "0.5.2"

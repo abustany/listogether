@@ -1,11 +1,12 @@
 import { Component, ParentComponent, createSignal } from "solid-js";
-import { Routes, Route, useBeforeLeave, useParams } from "@solidjs/router";
+import { Router, Route, useBeforeLeave, useParams, RouteSectionProps } from "@solidjs/router";
 import { Transition } from "solid-transition-group";
 
 import { List } from "./List";
 import { Lists } from "./Lists";
 import styles from "./App.module.css";
 import { Import } from "./Import";
+import { ListStoreProvider } from "./ListStore";
 import { UpdateIndicator } from "./UpdateIndicator";
 
 // We need an extra level of wrapping here to enable animations: the elements
@@ -29,44 +30,51 @@ const reverseRouteTransitions = {
   exitToClass: styles.RouteEnterFrom,
 };
 
-const App: Component = () => {
+const Root: Component<RouteSectionProps<unknown>> = (props) => {
   const [transitions, setTransitions] = createSignal(forwardRouteTransitions);
 
   useBeforeLeave((ev) => {
     setTransitions(ev.to === "/" ? reverseRouteTransitions : forwardRouteTransitions);
   });
-
   return (
-    <div class={styles.App}>
+    <ListStoreProvider>
       <Transition name="route" {...transitions()}>
-        <Routes>
-          <Route
-            path="/import/:id"
-            component={() => (
-              <RouteContainer>
-                <Import id={useParams().id} />
-              </RouteContainer>
-            )}
-          />
-          <Route
-            path="/:id"
-            component={() => (
-              <RouteContainer>
-                <List id={useParams().id} />
-              </RouteContainer>
-            )}
-          />
-          <Route
-            path="/"
-            component={() => (
-              <RouteContainer>
-                <Lists />
-              </RouteContainer>
-            )}
-          />
-        </Routes>
+        {props.children}
       </Transition>
       <UpdateIndicator />
+    </ListStoreProvider>
+  );
+};
+
+const App: Component = () => {
+  return (
+    <div class={styles.App}>
+      <Router root={Root}>
+        <Route
+          path="/import/:id"
+          component={() => (
+            <RouteContainer>
+              <Import id={useParams<{ id: string }>().id} />
+            </RouteContainer>
+          )}
+        />
+        <Route
+          path="/:id"
+          component={() => (
+            <RouteContainer>
+              <List id={useParams<{ id: string }>().id} />
+            </RouteContainer>
+          )}
+        />
+        <Route
+          path="/"
+          component={() => (
+            <RouteContainer>
+              <Lists />
+            </RouteContainer>
+          )}
+        />
+      </Router>
     </div>
   );
 };
