@@ -190,6 +190,12 @@ test("List editing", async ({ page }) => {
     await page.keyboard.press("Backspace");
     await expect(l.item(0, 0)).toBeFocused();
 
+    // The caret is at the end of the previous item
+    await page.keyboard.type("!");
+    await expect(l.item(0, 0)).toHaveText("Apples!");
+    await page.keyboard.press("Backspace");
+    await expect(l.item(0, 0)).toHaveText("Apples");
+
     // The items after the deleted one are still reachable with the keyboard
     await page.keyboard.press("ArrowDown");
     await expect(l.item(0, 1)).toBeFocused();

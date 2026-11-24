@@ -70,6 +70,21 @@ function nextInputRefPath(
   return undefined; // nothing after last item of last section
 }
 
+function moveCaretToEnd(el: HTMLElement) {
+  if (el instanceof HTMLInputElement) {
+    el.setSelectionRange(el.value.length, el.value.length);
+    return;
+  }
+
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(false);
+
+  const selection = getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
+
 const transparentInput = "m-0 text-[inherit] border-0 outline-0 bg-inherit";
 
 const ListLoaded: Component<{ list: ListSchema }> = (props) => {
@@ -219,6 +234,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
 
   const onItemKeyDown = (sectionIdx: number | undefined, itemIdx: number | undefined, ev: KeyboardEvent) => {
     let path: string | undefined;
+    let caretAtEnd = false;
 
     switch (ev.key) {
       case "ArrowUp":
@@ -239,6 +255,8 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
           // Focus the element before the one we just deleted.
           path = previousInputRefPath(sections, sectionIdx, itemIdx);
 
+          caretAtEnd = true;
+
           deleteSection(sectionIdx);
           removeSectionInputRefs(sectionIdx);
         }
@@ -252,6 +270,8 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
         ) {
           // Focus the element before the one we just deleted.
           path = previousInputRefPath(sections, sectionIdx, itemIdx);
+
+          caretAtEnd = true;
 
           const nItemsBeforeDeletion = sections[sectionIdx].items.length;
 
@@ -313,7 +333,12 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
     if (path === undefined) return;
 
     ev.preventDefault();
-    inputRefs.get(path)?.focus();
+
+    const el = inputRefs.get(path);
+    if (!el) return;
+
+    el.focus();
+    if (caretAtEnd) moveCaretToEnd(el);
   };
 
   return (
