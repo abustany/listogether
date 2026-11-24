@@ -148,6 +148,12 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
     if (idx === sections.length - 1) {
       restoreCaretPositionAtNextTick(input, inputRefPath(idx));
       input.value = ""; // reset the value since a new section will be appended
+
+      // The new section is rendered at idx, and the "new section" placeholder
+      // moves down by one. Its ref callback does not run again, so update its
+      // path by hand before the new section registers its own ref.
+      inputRefs.set(inputRefPath(idx + 1), input);
+
       appendSection(name);
     } else {
       renameSection(idx, name);
