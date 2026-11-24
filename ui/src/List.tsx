@@ -321,6 +321,11 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
                       return itemIndex() === section.items.length - 1;
                     };
 
+                    // The text is only set when the item is created: the
+                    // contenteditable div owns it after that, and re-rendering
+                    // it on each keystroke would move the caret.
+                    const initialText = item.text;
+
                     return (
                       <li class="flex flex-row items-start gap-2">
                         {!isLastItem() && (
@@ -346,7 +351,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
                             onItemKeyDown(sectionIndex(), itemIndex(), ev);
                           }}
                         >
-                          {/*@once*/ item.text}
+                          {initialText}
                         </div>
                       </li>
                     );
