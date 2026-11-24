@@ -114,12 +114,24 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
   });
   onCleanup(save);
 
-  function restoreCaretPositionAtNextTick(inputRefPath: string) {
-    const selectionEnd = getSelection()?.getRangeAt(0).endOffset ?? 0;
-    if (selectionEnd === undefined) return;
+  // Moves the focus to the element at inputRefPath once it has been rendered,
+  // keeping the caret at the same offset as in source.
+  function restoreCaretPositionAtNextTick(source: HTMLElement, inputRefPath: string) {
+    // Text inputs have their own selection, which is not reflected in the
+    // document selection.
+    const selectionEnd =
+      source instanceof HTMLInputElement ? (source.selectionEnd ?? 0) : (getSelection()?.getRangeAt(0).endOffset ?? 0);
 
     const afterTick = () => {
-      inputRefs.get(inputRefPath)?.focus();
+      const el = inputRefs.get(inputRefPath);
+      if (!el) return;
+
+      el.focus();
+
+      if (el instanceof HTMLInputElement) {
+        el.setSelectionRange(selectionEnd, selectionEnd);
+        return;
+      }
 
       const newSelectionRange = getSelection()?.getRangeAt(0);
       newSelectionRange?.setStart(newSelectionRange.endContainer, selectionEnd);
@@ -134,8 +146,8 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
     const name = input.value ?? "";
 
     if (idx === sections.length - 1) {
+      restoreCaretPositionAtNextTick(input, inputRefPath(idx));
       input.value = ""; // reset the value since a new section will be appended
-      restoreCaretPositionAtNextTick(inputRefPath(idx));
       appendSection(name);
     } else {
       renameSection(idx, name);
@@ -161,7 +173,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
     const text = target.textContent ?? "";
 
     if (itemIdx === sections[sectionIdx].items.length - 1) {
-      restoreCaretPositionAtNextTick(inputRefPath(sectionIdx, itemIdx));
+      restoreCaretPositionAtNextTick(target, inputRefPath(sectionIdx, itemIdx));
       insertItem(sectionIdx, itemIdx, text);
 
       // Reset the text of the placeholder
