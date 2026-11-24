@@ -141,6 +141,15 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
     setTimeout(afterTick, 0);
   }
 
+  // Adds a section just before the "new section" placeholder.
+  const addSection = (placeholder: HTMLElement, name: string) => {
+    // The new section is rendered at the index of the placeholder, which moves
+    // down by one. Its ref callback does not run again, so update its path by
+    // hand before the new section registers its own ref.
+    inputRefs.set(inputRefPath(sections.length), placeholder);
+    appendSection(name);
+  };
+
   const onSectionNameChanged = (idx: number, ev: Event) => {
     const input = ev.target as HTMLInputElement;
     const name = input.value ?? "";
@@ -148,13 +157,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
     if (idx === sections.length - 1) {
       restoreCaretPositionAtNextTick(input, inputRefPath(idx));
       input.value = ""; // reset the value since a new section will be appended
-
-      // The new section is rendered at idx, and the "new section" placeholder
-      // moves down by one. Its ref callback does not run again, so update its
-      // path by hand before the new section registers its own ref.
-      inputRefs.set(inputRefPath(idx + 1), input);
-
-      appendSection(name);
+      addSection(input, name);
     } else {
       renameSection(idx, name);
     }
@@ -265,7 +268,21 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
         }
         break;
       case "Enter":
-        const targetSectionIdx = sectionIdx ?? 0;
+        if (sectionIdx === undefined) {
+          // From the list name, move to the first section name
+          path = inputRefPath(0);
+          break;
+        }
+
+        if (itemIdx === undefined && sectionIdx === sections.length - 1) {
+          // From the "new section" placeholder, add an unnamed section and
+          // move to its new item placeholder
+          addSection(ev.target as HTMLElement, "");
+          path = inputRefPath(sectionIdx, 0);
+          break;
+        }
+
+        const targetSectionIdx = sectionIdx;
         const targetItemIdx = itemIdx !== undefined ? 1 + itemIdx : 0;
 
         let itemText: string | undefined;
