@@ -160,6 +160,26 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
     }
   };
 
+  // Drops the refs of a deleted section and moves the refs of the sections
+  // after it (section names and items) up by one.
+  const removeSectionInputRefs = (sectionIdx: number) => {
+    const entries = [...inputRefs.entries()];
+    inputRefs.clear();
+
+    for (const [path, el] of entries) {
+      if (path === "") {
+        inputRefs.set(path, el); // list name
+        continue;
+      }
+
+      const [s, ...rest] = path.split(".");
+      const idx = Number(s);
+
+      if (idx < sectionIdx) inputRefs.set(path, el);
+      else if (idx > sectionIdx) inputRefs.set([idx - 1, ...rest].join("."), el);
+    }
+  };
+
   const insertItem = (sectionIdx: number, itemIdx: number, text: string) => {
     const nItemsBeforeAppend = sections[sectionIdx].items.length;
 
@@ -216,15 +236,8 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
           // Focus the element before the one we just deleted.
           path = previousInputRefPath(sections, sectionIdx, itemIdx);
 
-          const nSectionsBeforeDeletion = sections.length;
-
           deleteSection(sectionIdx);
-
-          for (let i = sectionIdx; i < nSectionsBeforeDeletion; i++) {
-            const el = inputRefs.get(inputRefPath(1 + sectionIdx));
-            if (!el) continue;
-            inputRefs.set(inputRefPath(i), el);
-          }
+          removeSectionInputRefs(sectionIdx);
         }
 
         // We filter out backspace event on the last item of a section, which
