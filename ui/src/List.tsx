@@ -7,6 +7,7 @@ import { ArrowLeft } from "./icons/ArrowLeft";
 import { List as ListSchema, Section } from "./list-schema";
 import { createListEditor } from "./ListEditor";
 import { cn } from "./cn";
+import { useBackToLists } from "./back-to-lists";
 
 // Computes a string "address" for a given input element. This is used to
 // address the HTML input elements in a map.
@@ -89,6 +90,7 @@ const transparentInput = "m-0 text-[inherit] border-0 outline-0 bg-inherit";
 
 const ListLoaded: Component<{ list: ListSchema }> = (props) => {
   const { updateList } = useLists();
+  const backToLists = useBackToLists();
 
   let nameInputRef: HTMLInputElement;
 
@@ -344,7 +346,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
   return (
     <div class="flex-1 max-w-[40rem] p-4 bg-white flex flex-col gap-[0.8rem] overflow-auto">
       <header class="flex items-center gap-[0.2rem] text-[1.5rem] [&>*]:h-[1em] [&>*]:min-w-0">
-        <A title="Back to lists" href="/">
+        <A title="Back to lists" href="/" onClick={backToLists}>
           <ArrowLeft size="1em" />
         </A>
         <input

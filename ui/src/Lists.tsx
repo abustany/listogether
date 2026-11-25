@@ -9,6 +9,7 @@ import { SyncStatus } from "./SyncStatus";
 import { Link } from "./icons/Link";
 import { Modal } from "./Modal";
 import { cn } from "./cn";
+import { fromListsState } from "./back-to-lists";
 
 const textButton =
   "text-inherit border-0 bg-transparent text-left cursor-pointer font-[inherit] flex items-center gap-[0.2rem]";
@@ -75,7 +76,7 @@ const ListItem: Component<{
 
   return (
     <li class={listLi} aria-labelledby={linkId}>
-      <A id={linkId} class="flex-[1_1_100%] p-4" href={`/${props.id}`}>
+      <A id={linkId} class="flex-[1_1_100%] p-4" href={`/${props.id}`} state={fromListsState}>
         {props.name || "(unnamed list)"}
       </A>
       <ShareButton
@@ -127,7 +128,7 @@ const ImportModal: Component<{ onClose: () => void }> = (props) => {
     if (url.indexOf(expectedPrefix) !== 0) return;
 
     const listId = url.slice(expectedPrefix.length);
-    navigate(`/import/${listId}`);
+    navigate(`/import/${listId}`, { state: fromListsState });
   };
   return (
     <Modal title="Import list" onClose={props.onClose}>
@@ -154,7 +155,7 @@ export const Lists: Component = () => {
 
   const onAddNewList = async () => {
     const listId = await addList("New list");
-    navigate(`/${listId}`);
+    navigate(`/${listId}`, { state: fromListsState });
   };
 
   const onShareList = (id: string) => {
