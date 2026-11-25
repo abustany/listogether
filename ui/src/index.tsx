@@ -4,6 +4,7 @@ import * as Sentry from "@sentry/browser";
 
 import "./index.css";
 import App from "./App";
+import { interceptHistoryNavigations } from "./view-transition";
 
 if (import.meta.env.PROD) {
   Sentry.init({
@@ -14,5 +15,7 @@ if (import.meta.env.PROD) {
 if (!("serviceWorker" in navigator)) {
   console.error("service workers are not supported");
 }
+
+interceptHistoryNavigations();
 
 render(() => <App />, document.getElementById("app") as HTMLElement);

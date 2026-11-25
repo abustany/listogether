@@ -24,6 +24,8 @@ export default defineConfig({
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: process.env.CI ? "on-first-retry" : "on",
     actionTimeout: 20_000,
+    /* Skip the route animations. The view transitions still run, with no animation. */
+    contextOptions: { reducedMotion: "reduce" },
   },
 
   /* Configure projects for major browsers */

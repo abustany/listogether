@@ -29,7 +29,7 @@ export const UpdateIndicator: Component = () => {
     <Show when={needRefresh()}>
       <div
         class={cn(
-          "fixed right-5 bottom-5 bg-[#dc4945] p-5 rounded-[5px] flex flex-col gap-4 transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]",
+          "fixed right-5 bottom-5 [view-transition-name:update-indicator] bg-[#dc4945] p-5 rounded-[5px] flex flex-col gap-4 transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]",
           entering() ? "translate-y-[8em]" : "translate-y-0",
         )}
       >
