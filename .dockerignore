@@ -1,4 +1,4 @@
-e2e
+*
+!server
+!ui/dist
 server/target
-ui/build
-ui/node_modules

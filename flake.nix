@@ -2,7 +2,7 @@
   description = "Listogether";
 
   inputs = {
-    nixpkgs.url      = "github:NixOS/nixpkgs/nixos-25.11";
+    nixpkgs.url      = "github:NixOS/nixpkgs/nixos-26.05";
     flake-utils.url  = "github:numtide/flake-utils";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
@@ -41,7 +41,7 @@
         devShells.default = pkgs.mkShell {
           buildInputs = [
             pkgs.nodejs
-            pkgs.yarn
+            pkgs.pnpm
             playwright-browsers
             rust
           ];

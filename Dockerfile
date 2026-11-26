@@ -1,15 +1,4 @@
 ###############################################################################
-# UI build
-###############################################################################
-FROM node:19.4.0-bullseye-slim AS ui
-
-WORKDIR /src/ui
-COPY ui/ .
-RUN \
-  --mount=type=cache,target=/usr/local/share/.cache/yarn/v6 \
-  yarn && yarn build
-
-###############################################################################
 # Backend build
 ###############################################################################
 FROM rust:1.68.2-slim-bullseye AS server
@@ -18,7 +7,8 @@ WORKDIR /src
 COPY server/ .
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 ENV CARGO_HOME=/cargo
-COPY --from=ui /src/ui/dist /ui/dist
+# The UI is built on the host, see AGENTS.md.
+COPY ui/dist /ui/dist
 RUN --mount=type=cache,target=/cargo --mount=type=cache,target=/src/target cargo build --release && mv target/release/listogether-server .
 
 ###############################################################################

@@ -5,20 +5,17 @@
   "type": "module",
   "scripts": {
     "build": "tsc && vite build",
-    "check-staged": "./scripts/check-format.js",
     "check": "oxlint src && oxfmt --check src",
     "dev": "vite",
     "icons": "./scripts/make-icons.js && oxfmt --write src/icons && oxlint --fix src/icons",
     "format": "oxfmt --write src scripts vite.config.ts",
     "lint": "oxlint src",
-    "prepare": "cd .. && husky install ui/.husky",
     "preview": "vite preview"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.2.1",
     "@types/uuid": "9.0.1",
     "feather-icons": "^4.29.0",
-    "husky": "8.0.3",
     "tailwindcss": "4.2.1",
     "vite": "8.0.0",
     "vite-plugin-pwa": "1.2.0",

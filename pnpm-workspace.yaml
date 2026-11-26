@@ -1,0 +1,6 @@
+packages:
+  - ui
+  - e2e
+
+allowBuilds:
+  core-js: false

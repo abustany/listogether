@@ -1,5 +1,0 @@
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
-export PATH="$(pwd)/ui/node_modules/.bin:$PATH"
-cd ui && yarn check-staged
