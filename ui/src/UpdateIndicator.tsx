@@ -1,4 +1,5 @@
 import { Component, createSignal, Show } from "solid-js";
+import { useLocation } from "@solidjs/router";
 import { useRegisterSW } from "virtual:pwa-register/solid";
 import { cn } from "./cn";
 
@@ -17,6 +18,9 @@ export const UpdateIndicator: Component = () => {
     },
   });
 
+  const location = useLocation();
+  const isOnListsPage = () => location.pathname === "/";
+
   const onUpdate = () => {
     updateServiceWorker(true); // param is actually ignored now
   };
@@ -26,7 +30,7 @@ export const UpdateIndicator: Component = () => {
   };
 
   return (
-    <Show when={needRefresh()}>
+    <Show when={needRefresh() && isOnListsPage()}>
       <div
         class={cn(
           "fixed right-5 bottom-5 [view-transition-name:update-indicator] bg-[#dc4945] p-5 rounded-[5px] flex flex-col gap-4 transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]",
