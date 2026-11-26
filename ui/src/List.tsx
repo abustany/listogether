@@ -1,4 +1,4 @@
-import { Component, For, onCleanup, Match, Switch } from "solid-js";
+import { batch, Component, For, onCleanup, onMount, Match, Show, Switch } from "solid-js";
 import { A } from "@solidjs/router";
 import { makeEventListener } from "@solid-primitives/event-listener";
 
@@ -7,6 +7,8 @@ import { ArrowLeft } from "./icons/ArrowLeft";
 import { List as ListSchema, Section } from "./list-schema";
 import { createListEditor } from "./ListEditor";
 import { cn } from "./cn";
+import { createListSelection, Row, rowKey, sameRow, selectableRows } from "./ListSelection";
+import { SelectionBanner } from "./SelectionBanner";
 import { useBackToLists } from "./back-to-lists";
 
 // Computes a string "address" for a given input element. This is used to
@@ -70,6 +72,34 @@ function nextInputRefPath(
   if (sectionIdx < sections.length - 1) return inputRefPath(1 + sectionIdx);
   return undefined; // nothing after last item of last section
 }
+
+// Rows have data-section and data-item attributes; the placeholders have none.
+function rowFromElement(el: Element | null): Row | undefined {
+  const rowEl = el?.closest<HTMLElement>("[data-section]");
+  if (!rowEl) return undefined;
+
+  const s = Number(rowEl.dataset.section);
+  if (rowEl.dataset.item === undefined) return { kind: "title", s };
+  return { kind: "item", s, i: Number(rowEl.dataset.item) };
+}
+
+function rowAtPoint(x: number, y: number): Row | undefined {
+  return rowFromElement(document.elementFromPoint(x, y));
+}
+
+// Not from an item text or a section title input, where a long press selects
+// text.
+function isLongPressTarget(el: Element): boolean {
+  const rowEl = el.closest("[data-section]");
+  if (!rowEl) return false;
+  if (rowEl.matches("li")) return el.closest("[contenteditable]") === null;
+  return el === rowEl;
+}
+
+const LongPressMs = 450;
+const LongPressMoveTolerancePx = 10;
+
+const selectedRow = "bg-[#b3d7ff]";
 
 function moveCaretToEnd(el: HTMLElement) {
   if (el instanceof HTMLInputElement) {
@@ -180,36 +210,70 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
     }
   };
 
-  // Drops the refs of a deleted section and moves the refs of the sections
-  // after it (section names and items) up by one.
-  const removeSectionInputRefs = (sectionIdx: number) => {
+  const remapInputRefs = (newPath: (s: number, i?: number) => string | undefined) => {
     const entries = [...inputRefs.entries()];
     inputRefs.clear();
 
     for (const [path, el] of entries) {
+      // The empty path is the list name, which never moves.
       if (path === "") {
-        inputRefs.set(path, el); // list name
+        inputRefs.set(path, el);
         continue;
       }
 
-      const [s, ...rest] = path.split(".");
-      const idx = Number(s);
-
-      if (idx < sectionIdx) inputRefs.set(path, el);
-      else if (idx > sectionIdx) inputRefs.set([idx - 1, ...rest].join("."), el);
+      const [s, i] = path.split(".").map(Number);
+      const p = newPath(s, i);
+      if (p !== undefined) inputRefs.set(p, el);
     }
   };
 
-  const insertItem = (sectionIdx: number, itemIdx: number, text: string) => {
-    const nItemsBeforeAppend = sections[sectionIdx].items.length;
+  // Deleting a title deletes its whole section. Returns the path of the element
+  // before the first deleted one, where the caret goes after a delete. That
+  // element is never deleted, so its path does not change.
+  const deleteRows = (isDeleted: (row: Row) => boolean): string | undefined => {
+    const first = selectableRows(sections).find(isDeleted);
+    if (!first) return undefined;
 
-    // Poke a "hole" in the index *before* calling setSections, so that the new
-    // ref does not override an existing value.
-    for (let i = nItemsBeforeAppend - 1; i >= itemIdx; --i) {
-      const el = inputRefs.get(inputRefPath(sectionIdx, i));
-      if (!el) continue;
-      inputRefs.set(inputRefPath(sectionIdx, 1 + i), el);
-    }
+    const focusPath = previousInputRefPath(sections, first.s, first.kind === "item" ? first.i : undefined);
+    const isSectionDeleted = (s: number) => isDeleted({ kind: "title", s });
+    const isItemDeleted = (s: number, i: number) => isDeleted({ kind: "item", s, i });
+
+    batch(() => {
+      // Delete from the end, so that the indexes of the rows that are still to
+      // delete do not change. The last section is the "New section…"
+      // placeholder, and the last item of a section is its "new item"
+      // placeholder.
+      for (let s = sections.length - 2; s >= 0; s--) {
+        if (isSectionDeleted(s)) {
+          deleteSection(s);
+          continue;
+        }
+
+        for (let i = sections[s].items.length - 2; i >= 0; i--) {
+          if (isItemDeleted(s, i)) deleteItem(s, i);
+        }
+      }
+    });
+
+    remapInputRefs((s, i) => {
+      if (isSectionDeleted(s)) return undefined;
+      let newS = s;
+      for (let t = 0; t < s; t++) if (isSectionDeleted(t)) newS--;
+      if (i === undefined) return inputRefPath(newS);
+
+      if (isItemDeleted(s, i)) return undefined;
+      let newI = i;
+      for (let j = 0; j < i; j++) if (isItemDeleted(s, j)) newI--;
+      return inputRefPath(newS, newI);
+    });
+
+    return focusPath;
+  };
+
+  const insertItem = (sectionIdx: number, itemIdx: number, text: string) => {
+    // Move the refs of the following items *before* calling appendItem, so
+    // that the ref of the new item does not override an existing value.
+    remapInputRefs((s, i) => inputRefPath(s, s === sectionIdx && i !== undefined && i >= itemIdx ? i + 1 : i));
 
     appendItem(sectionIdx, itemIdx, text);
   };
@@ -235,6 +299,13 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
   };
 
   const onItemKeyDown = (sectionIdx: number | undefined, itemIdx: number | undefined, ev: KeyboardEvent) => {
+    if (ev.shiftKey && (ev.key === "ArrowUp" || ev.key === "ArrowDown")) {
+      if (sectionIdx === undefined || itemIdx === undefined) return;
+
+      startSelectionFromKeyboard(sectionIdx, itemIdx, ev.key === "ArrowDown" ? 1 : -1, ev);
+      return;
+    }
+
     let path: string | undefined;
     let caretAtEnd = false;
 
@@ -254,13 +325,8 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
         if (sectionIdx === undefined) return;
 
         if (itemIdx === undefined && sections[sectionIdx].items.length === 1 && sections[sectionIdx].name === "") {
-          // Focus the element before the one we just deleted.
-          path = previousInputRefPath(sections, sectionIdx, itemIdx);
-
+          path = deleteRows((row) => row.s === sectionIdx);
           caretAtEnd = true;
-
-          deleteSection(sectionIdx);
-          removeSectionInputRefs(sectionIdx);
         }
 
         // We filter out backspace event on the last item of a section, which
@@ -270,23 +336,8 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
           itemIdx !== sections[sectionIdx].items.length - 1 &&
           sections[sectionIdx].items[itemIdx].text === ""
         ) {
-          // Focus the element before the one we just deleted.
-          path = previousInputRefPath(sections, sectionIdx, itemIdx);
-
+          path = deleteRows((row) => row.kind === "item" && row.s === sectionIdx && row.i === itemIdx);
           caretAtEnd = true;
-
-          const nItemsBeforeDeletion = sections[sectionIdx].items.length;
-
-          deleteItem(sectionIdx, itemIdx);
-
-          // Reindex the items in the section
-          for (let i = itemIdx; i < nItemsBeforeDeletion; i++) {
-            const el = inputRefs.get(inputRefPath(sectionIdx, i + 1));
-            if (!el) continue;
-            inputRefs.set(inputRefPath(sectionIdx, i), el);
-          }
-
-          inputRefs.delete(inputRefPath(sectionIdx, nItemsBeforeDeletion - 1));
         }
         break;
       case "Enter":
@@ -343,101 +394,445 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
     if (caretAtEnd) moveCaretToEnd(el);
   };
 
+  const selection = createListSelection(sections);
+
+  let containerRef: HTMLDivElement;
+
+  // The type of the last pointer used. After a delete, the caret goes to the
+  // element before the deleted ones, except after a tap: the keyboard would
+  // open on mobile.
+  let lastPointerType = "mouse";
+  makeEventListener(
+    document,
+    "pointerdown",
+    (ev) => {
+      lastPointerType = ev.pointerType;
+    },
+    { capture: true },
+  );
+
+  // Set after a drag or a Shift+click that started the mode, so that the click
+  // that ends it does not toggle a row.
+  let suppressNextClick = false;
+
+  // On Android, the back button exits the mode instead of leaving the list.
+  let closeWatcher: CloseWatcher | null = null;
+
+  const exitSelection = () => {
+    closeWatcher?.destroy();
+    closeWatcher = null;
+    selection.stop();
+  };
+  onCleanup(exitSelection);
+
+  const enterSelection = (from: Row) => {
+    // Blurring also closes the keyboard on mobile.
+    (document.activeElement as HTMLElement | null)?.blur();
+    getSelection()?.removeAllRanges();
+
+    selection.start(from);
+
+    const CloseWatcherClass = globalThis.CloseWatcher;
+    if (CloseWatcherClass && !closeWatcher) {
+      closeWatcher = new CloseWatcherClass();
+      closeWatcher.onclose = () => {
+        closeWatcher = null;
+        exitSelection();
+      };
+    }
+  };
+
+  const startSelectionFromKeyboard = (s: number, i: number, dir: 1 | -1, ev: KeyboardEvent) => {
+    if (i === sections[s].items.length - 1) {
+      const above = selection.itemAbovePlaceholder(s);
+      if (!above) return;
+
+      ev.preventDefault();
+      enterSelection(above);
+      return;
+    }
+
+    ev.preventDefault();
+    enterSelection({ kind: "item", s, i });
+    selection.extend(dir);
+  };
+
+  const toggleSelectedChecked = () => {
+    const checked = selection.checkAction() === "check";
+
+    for (const { s, i } of selection.selectedItems()) {
+      if (sections[s].items[i].checked !== checked) toggleItem(s, i, checked);
+    }
+  };
+
+  const deleteSelection = (focusPrevious: boolean) => {
+    if (selection.isEmpty()) return;
+
+    const path = deleteRows(selection.isSelected);
+    exitSelection();
+
+    const el = focusPrevious && path !== undefined ? inputRefs.get(path) : undefined;
+    if (!el) return;
+
+    el.focus();
+    moveCaretToEnd(el);
+  };
+
+  makeEventListener(document, "keydown", (ev) => {
+    // The key press that starts the mode is handled by onItemKeyDown, which
+    // prevents its default action.
+    if (!selection.active() || ev.defaultPrevented) return;
+
+    switch (ev.key) {
+      case "Escape":
+        ev.preventDefault();
+        exitSelection();
+        return;
+      case "Backspace":
+      case "Delete":
+        ev.preventDefault();
+        deleteSelection(true);
+        return;
+      case "ArrowUp":
+      case "ArrowDown": {
+        if (!ev.shiftKey) return;
+
+        ev.preventDefault();
+        const added = selection.extend(ev.key === "ArrowDown" ? 1 : -1);
+        if (added) inputRefs.get(rowKey(added))?.scrollIntoView({ block: "nearest" });
+        return;
+      }
+    }
+
+    // Space must still activate the banner buttons.
+    const isCharacter = ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && !ev.altKey;
+    if (isCharacter && !(ev.target instanceof HTMLButtonElement)) ev.preventDefault();
+  });
+
+  // Fills the range from the last row, in case the pointer moved over several
+  // rows between two events.
+  const dragOver = (gesture: { last: Row }, row: Row) => {
+    selection.dragTo(gesture.last, row);
+    gesture.last = row;
+  };
+
+  let drag: { start: Row; last: Row; moved: boolean } | null = null;
+
+  const onListPointerDown = (ev: PointerEvent) => {
+    suppressNextClick = false;
+    drag = null;
+
+    if (ev.pointerType !== "mouse" || ev.button !== 0 || ev.shiftKey) return;
+
+    const row = rowFromElement(ev.target as Element);
+    if (!row || (!selection.active() && row.kind !== "item")) return;
+
+    drag = { start: row, last: row, moved: false };
+  };
+
+  const onListPointerMove = (ev: PointerEvent) => {
+    if (!drag || ev.pointerType !== "mouse" || (ev.buttons & 1) === 0) return;
+
+    const row = rowAtPoint(ev.clientX, ev.clientY);
+    if (!row || sameRow(row, drag.last)) return;
+
+    if (!drag.moved) {
+      drag.moved = true;
+      if (!selection.active() && drag.start.kind === "item") enterSelection(drag.start);
+    }
+
+    dragOver(drag, row);
+    getSelection()?.removeAllRanges();
+  };
+
+  const endDrag = () => {
+    if (drag?.moved) suppressNextClick = true;
+    drag = null;
+  };
+  makeEventListener(window, "pointerup", endDrag);
+  makeEventListener(window, "pointercancel", endDrag);
+
+  const onListMouseDown = (ev: MouseEvent) => {
+    if (selection.active()) {
+      // No caret and no text selection in the mode.
+      ev.preventDefault();
+      return;
+    }
+
+    if (!ev.shiftKey || ev.button !== 0) return;
+
+    const focused = rowFromElement(document.activeElement);
+    const clicked = rowFromElement(ev.target as Element);
+    if (focused?.kind !== "item" || clicked?.kind !== "item" || sameRow(focused, clicked)) return;
+
+    ev.preventDefault();
+    enterSelection(focused);
+    selection.shiftClick(clicked);
+    suppressNextClick = true;
+  };
+
+  const onListClick = (ev: MouseEvent) => {
+    if (suppressNextClick) {
+      suppressNextClick = false;
+      return;
+    }
+
+    if (!selection.active()) return;
+
+    const row = rowFromElement(ev.target as Element);
+    if (!row) return;
+
+    if (ev.shiftKey && row.kind === "item") selection.shiftClick(row);
+    else selection.toggle(row);
+  };
+
+  const onListFocusIn = (ev: FocusEvent) => {
+    // Fallback in case an input or an item gets the focus in the mode anyway.
+    const target = ev.target;
+    if (selection.active() && target instanceof HTMLElement && target.matches("input, [contenteditable]")) {
+      target.blur();
+    }
+  };
+
+  let press: { row: Row; last: Row; x: number; y: number; timer: number; fired: boolean } | null = null;
+
+  const cancelPress = () => {
+    if (press) clearTimeout(press.timer);
+    press = null;
+  };
+
+  const firePress = () => {
+    if (!press || press.fired) return;
+
+    clearTimeout(press.timer);
+    press.fired = true;
+
+    if (selection.active()) selection.press(press.row);
+    else enterSelection(press.row);
+  };
+
+  const onListContextMenu = (ev: MouseEvent) => {
+    if (!isLongPressTarget(ev.target as Element)) return;
+
+    // A long press opens the context menu on Android. It may come before the
+    // timer.
+    ev.preventDefault();
+    firePress();
+  };
+
+  onMount(() => {
+    makeEventListener(
+      containerRef,
+      "touchstart",
+      (ev) => {
+        cancelPress();
+        if (ev.touches.length !== 1) return;
+
+        const target = ev.target as Element;
+        const row = rowFromElement(target);
+        if (!row || !isLongPressTarget(target)) return;
+
+        const { clientX: x, clientY: y } = ev.touches[0];
+        press = { row, last: row, x, y, timer: window.setTimeout(firePress, LongPressMs), fired: false };
+      },
+      { passive: true },
+    );
+
+    // Not passive, so that it can block scrolling during a drag.
+    makeEventListener(
+      containerRef,
+      "touchmove",
+      (ev) => {
+        if (!press) return;
+
+        const touch = ev.touches[0];
+        if (!press.fired) {
+          if (Math.hypot(touch.clientX - press.x, touch.clientY - press.y) > LongPressMoveTolerancePx) cancelPress();
+          return;
+        }
+
+        ev.preventDefault();
+
+        const row = rowAtPoint(touch.clientX, touch.clientY);
+        if (row && !sameRow(row, press.last)) dragOver(press, row);
+      },
+      { passive: false },
+    );
+
+    makeEventListener(
+      containerRef,
+      "touchend",
+      (ev) => {
+        // The click that follows a long press must not toggle the item, nor
+        // its checkbox.
+        if (press?.fired && ev.cancelable) ev.preventDefault();
+        cancelPress();
+      },
+      { passive: false },
+    );
+
+    makeEventListener(containerRef, "touchcancel", cancelPress);
+  });
+
   return (
-    <div class="flex-1 max-w-[40rem] p-4 bg-white flex flex-col gap-[0.8rem] overflow-auto">
-      <header class="flex items-center gap-[0.2rem] text-[1.5rem] [&>*]:h-[1em] [&>*]:min-w-0">
-        <A title="Back to lists" href="/" onClick={backToLists}>
-          <ArrowLeft size="1em" />
-        </A>
-        <input
-          ref={(el) => {
-            nameInputRef = el;
-            setInputRef(el);
-          }}
-          onKeyDown={(ev) => {
-            onItemKeyDown(undefined, undefined, ev);
-          }}
-          type="text"
-          class={cn(transparentInput, "flex-1 p-[0.3rem] pb-2 border-b border-b-[#999]")}
-          value={props.list.name}
-          placeholder="List name"
-        />
-      </header>
-
-      <For each={sections}>
-        {(section, sectionIndex) => {
-          const isLast = () => {
-            return sectionIndex() === sections.length - 1;
-          };
-
-          return (
-            <section class="flex-none ml-6 flex flex-col">
-              <input
-                type="text"
-                ref={(el) => {
-                  setInputRef(el, sectionIndex());
-                }}
-                class={cn(transparentInput, "text-[1.2em] font-bold")}
-                placeholder={isLast() ? "New section…" : "Unnamed section"}
-                value={section.name}
-                onInput={(ev) => {
-                  onSectionNameChanged(sectionIndex(), ev);
-                }}
-                onKeyDown={(ev) => {
-                  onItemKeyDown(sectionIndex(), undefined, ev);
-                }}
-                role="heading"
-                aria-level="2"
-              />
-              <ul class="m-0 p-0 pl-2 list-none leading-[1.7rem]">
-                <For each={section.items}>
-                  {(item, itemIndex) => {
-                    const isLastItem = () => {
-                      return itemIndex() === section.items.length - 1;
-                    };
-
-                    // The text is only set when the item is created: the
-                    // contenteditable div owns it after that, and re-rendering
-                    // it on each keystroke would move the caret.
-                    const initialText = item.text;
-
-                    return (
-                      <li class="flex flex-row items-start gap-2">
-                        {!isLastItem() && (
-                          <input
-                            type="checkbox"
-                            class="flex-none mt-2"
-                            checked={item.checked}
-                            onChange={(ev) => {
-                              onItemValueChanged(sectionIndex(), itemIndex(), ev);
-                            }}
-                          />
-                        )}
-                        <div
-                          contenteditable
-                          ref={(el) => {
-                            setInputRef(el, sectionIndex(), itemIndex());
-                          }}
-                          class={cn(transparentInput, "flex-1", isLastItem() && "new-item")}
-                          onInput={(ev) => {
-                            onItemTextChanged(sectionIndex(), itemIndex(), ev);
-                          }}
-                          onKeyDown={(ev) => {
-                            onItemKeyDown(sectionIndex(), itemIndex(), ev);
-                          }}
-                        >
-                          {initialText}
-                        </div>
-                      </li>
-                    );
-                  }}
-                </For>
-              </ul>
-            </section>
-          );
+    <>
+      <div
+        ref={(el) => {
+          containerRef = el;
         }}
-      </For>
-    </div>
+        class={cn(
+          "flex-1 max-w-[40rem] p-4 bg-white flex flex-col gap-[0.8rem] overflow-auto",
+          selection.active() && "select-none pb-28",
+        )}
+        onPointerDown={onListPointerDown}
+        onPointerMove={onListPointerMove}
+        onMouseDown={onListMouseDown}
+        onClick={onListClick}
+        onFocusIn={onListFocusIn}
+        onContextMenu={onListContextMenu}
+      >
+        <header class="flex items-center gap-[0.2rem] text-[1.5rem] [&>*]:h-[1em] [&>*]:min-w-0">
+          <A title="Back to lists" href="/" onClick={backToLists}>
+            <ArrowLeft size="1em" />
+          </A>
+          <input
+            ref={(el) => {
+              nameInputRef = el;
+              setInputRef(el);
+            }}
+            onKeyDown={(ev) => {
+              onItemKeyDown(undefined, undefined, ev);
+            }}
+            type="text"
+            class={cn(transparentInput, "flex-1 p-[0.3rem] pb-2 border-b border-b-[#999]")}
+            value={props.list.name}
+            placeholder="List name"
+            readOnly={selection.active()}
+          />
+        </header>
+
+        <For each={sections}>
+          {(section, sectionIndex) => {
+            const isLast = () => {
+              return sectionIndex() === sections.length - 1;
+            };
+
+            const isTitleSelected = () => !isLast() && selection.isSelected({ kind: "title", s: sectionIndex() });
+
+            return (
+              <section class="flex-none flex flex-col">
+                <div
+                  class={cn(
+                    "pl-8",
+                    !isLast() && "select-none [-webkit-touch-callout:none]",
+                    isTitleSelected() && selectedRow,
+                  )}
+                  data-section={isLast() ? undefined : sectionIndex()}
+                  data-selected={isTitleSelected() ? "true" : undefined}
+                >
+                  <input
+                    type="text"
+                    ref={(el) => {
+                      setInputRef(el, sectionIndex());
+                    }}
+                    class={cn(transparentInput, "w-full text-[1.2em] font-bold", !selection.active() && "select-text")}
+                    placeholder={isLast() ? "New section…" : "Unnamed section"}
+                    value={section.name}
+                    readOnly={selection.active()}
+                    onInput={(ev) => {
+                      onSectionNameChanged(sectionIndex(), ev);
+                    }}
+                    onKeyDown={(ev) => {
+                      onItemKeyDown(sectionIndex(), undefined, ev);
+                    }}
+                    role="heading"
+                    aria-level="2"
+                  />
+                </div>
+                <ul class="m-0 p-0 list-none leading-[1.7rem]">
+                  <For each={section.items}>
+                    {(item, itemIndex) => {
+                      const isLastItem = () => {
+                        return itemIndex() === section.items.length - 1;
+                      };
+
+                      const isItemSelected = () =>
+                        !isLastItem() && selection.isSelected({ kind: "item", s: sectionIndex(), i: itemIndex() });
+
+                      // The text is only set when the item is created: the
+                      // contenteditable div owns it after that, and re-rendering
+                      // it on each keystroke would move the caret.
+                      const initialText = item.text;
+
+                      // The padding on the left of the row is where a long
+                      // press starts the selection mode on mobile, so it must
+                      // be wide enough for a finger.
+                      return (
+                        <li
+                          class={cn(
+                            "flex flex-row items-start gap-2 pl-10",
+                            !isLastItem() && "select-none [-webkit-touch-callout:none]",
+                            isItemSelected() && selectedRow,
+                          )}
+                          data-section={isLastItem() ? undefined : sectionIndex()}
+                          data-item={isLastItem() ? undefined : itemIndex()}
+                          data-selected={isItemSelected() ? "true" : undefined}
+                        >
+                          {!isLastItem() && (
+                            <input
+                              type="checkbox"
+                              class="flex-none mt-2"
+                              checked={item.checked}
+                              onClick={(ev) => {
+                                if (selection.active()) ev.preventDefault();
+                              }}
+                              onChange={(ev) => {
+                                onItemValueChanged(sectionIndex(), itemIndex(), ev);
+                              }}
+                            />
+                          )}
+                          <div
+                            contenteditable={selection.active() ? "false" : "true"}
+                            ref={(el) => {
+                              setInputRef(el, sectionIndex(), itemIndex());
+                            }}
+                            class={cn(
+                              transparentInput,
+                              "flex-1",
+                              !selection.active() && "select-text",
+                              isLastItem() && "new-item",
+                            )}
+                            onInput={(ev) => {
+                              onItemTextChanged(sectionIndex(), itemIndex(), ev);
+                            }}
+                            onKeyDown={(ev) => {
+                              onItemKeyDown(sectionIndex(), itemIndex(), ev);
+                            }}
+                          >
+                            {initialText}
+                          </div>
+                        </li>
+                      );
+                    }}
+                  </For>
+                </ul>
+              </section>
+            );
+          }}
+        </For>
+      </div>
+
+      <Show when={selection.active()}>
+        <SelectionBanner
+          summary={selection.summary()}
+          checkAction={selection.checkAction()}
+          canDelete={!selection.isEmpty()}
+          onToggleChecked={toggleSelectedChecked}
+          onDelete={() => deleteSelection(lastPointerType !== "touch")}
+          onDone={exitSelection}
+        />
+      </Show>
+    </>
   );
 };
 

@@ -32,10 +32,18 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
+      testIgnore: /-touch\.spec\.ts$/,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1440, height: 900 },
       },
+    },
+
+    /* Touch interactions (long press, touch drag) */
+    {
+      name: "mobile",
+      testMatch: /-touch\.spec\.ts$/,
+      use: { ...devices["Pixel 7"] },
     },
 
     /* disabled until https://github.com/NixOS/nixpkgs/issues/288826 is fixed */
