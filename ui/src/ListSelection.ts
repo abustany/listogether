@@ -122,6 +122,8 @@ function nextItem(sections: Section[], from: Row, dir: 1 | -1): ItemRow | undefi
 // Rows are addressed by index. This is safe because nothing can be edited
 // while the mode is on, so the indexes only change when the selection is
 // deleted, and the mode exits then.
+export type ListSelection = ReturnType<typeof createListSelection>;
+
 export function createListSelection(sections: Section[]) {
   const [state, setState] = createSignal<SelectionState>({ mode: "inactive" });
 

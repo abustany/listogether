@@ -17,9 +17,9 @@ Collaborative todo lists. Offline-first PWA, synced with Automerge.
 ## UI architecture
 - `ListStore.tsx`: IndexedDB storage, device ID, Automerge docs, and sync over WebSocket `/api/v1/document/sync`. Exposed through a context (`useLists`).
 - `list-schema.ts`: `List { id, name, sections: { name, items: { text, checked }[] }[] }`. Item text is a plain string (last writer wins), not Automerge text.
-- `ListSelection.ts`: state of the selection mode, to select several items and sections and check or delete them. `List.tsx` handles its input events (keys, clicks, mouse drag, touch long press) and `SelectionBanner.tsx` is its toolbar.
+- `ListSelection.ts`: state of the selection mode, to select several items and sections and check or delete them. `selection-input.ts` handles its input events (keys, clicks, mouse drag, touch long press), and `SelectionBanner.tsx` is its toolbar.
 - `ListEditor.ts`: Solid store plus a queue of index-based `ListChange` ops. `List.tsx` applies the queue through `updateList` on window blur or unmount.
-- `List.tsx`: hand-written editor. Each item is its own `contenteditable` div. Every section ends with an empty "new item" sentinel, and the list ends with an empty section sentinel. Focus moves through the `inputRefs` map (`"s"` / `"s.i"` keys), which must be reindexed by hand on insert and delete.
+- `List.tsx`: hand-written editor. Each item is its own `contenteditable` div. Every section ends with an empty "new item" sentinel, and the list ends with an empty section sentinel. Focus moves through the refs map of `input-refs.ts` (`"s"` / `"s.i"` keys), which must be reindexed by hand (`refs.remap`) on insert and delete.
 - Icons in `ui/src/icons` are generated (`yarn icons`). Do not edit them by hand.
 - `ui/datamodel.txt` is out of date: sync now uses a WebSocket, not `POST /sync`.
 
