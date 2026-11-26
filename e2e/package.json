@@ -7,7 +7,8 @@
     "dev": "playwright test --ui",
     "format": "oxfmt --write tests fixtures playwright.config.ts",
     "lint": "oxlint tests fixtures",
-    "test": "playwright test"
+    "test": "playwright test",
+    "typecheck": "tsc"
   },
   "dependencies": {
     "@playwright/test": "1.59.1"

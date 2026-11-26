@@ -9,9 +9,9 @@ Collaborative todo lists. Offline-first PWA, synced with Automerge.
 - Dev env: `flake.nix` via direnv.
 
 ## Commands
-- UI: `cd ui && pnpm dev` (port 3000, proxies `/api` to `127.0.0.1:8789`), `pnpm build` (runs tsc), `pnpm check` (oxlint + oxfmt).
+- UI: `cd ui && pnpm dev` (port 3000, proxies `/api` to `127.0.0.1:8789`), `pnpm build` (runs tsc), `pnpm typecheck`, `pnpm check` (oxlint + oxfmt).
 - Server: `cd server && cargo run -- serve --id-signing-key "$(cat id_signing_key.txt)" --lists-dir <dir>`.
-- E2E: `cd e2e && pnpm test`.
+- E2E: `cd e2e && pnpm test`, `pnpm typecheck`.
 - Formatting: oxfmt, 120 columns.
 - Docker: run `pnpm --filter listogether build` first. The image copies `ui/dist` from the host and does not build the UI.
 

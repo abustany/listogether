@@ -2,6 +2,9 @@
   "extends": "@tsconfig/node24/tsconfig.json",
   "compilerOptions": {
     "baseUrl": ".",
+    // Callbacks given to page.evaluate run in the browser and use DOM types. Setting "lib" replaces the list of the
+    // base config, so its entries are repeated here.
+    "lib": ["es2024", "ESNext.Array", "ESNext.Collection", "ESNext.Error", "ESNext.Iterator", "ESNext.Promise", "DOM"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "noEmit": true,

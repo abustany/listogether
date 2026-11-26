@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc && vite build",
     "check": "oxlint src && oxfmt --check src",
+    "typecheck": "tsc",
     "dev": "vite",
     "icons": "./scripts/make-icons.js && oxfmt --write src/icons && oxlint --fix src/icons",
     "format": "oxfmt --write src scripts vite.config.ts",
