@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use base64::Engine as _;
 use ecdsa::signature::{Signer as _, Verifier as _};
 use rand::RngCore;
@@ -9,6 +9,7 @@ type Signature = ecdsa::Signature<Curve>;
 
 pub const RAW_DEVICE_ID_LEN: usize = 16; // bytes
 const SIGNATURE_LEN: usize = 64; // bytes
+const KEY_LEN: usize = 32; // bytes
 
 pub struct DeviceID(Vec<u8>);
 
@@ -35,8 +36,8 @@ impl DeviceID {
             return Err(anyhow!("invalid ID size"));
         }
 
-        let sig: Signature = Signature::from_bytes((&bytes[0..SIGNATURE_LEN]).into())
-            .context("error parsing signature")?;
+        let sig =
+            Signature::from_slice(&bytes[0..SIGNATURE_LEN]).context("error parsing signature")?;
         signing_key
             .as_ref()
             .as_ref()
@@ -70,8 +71,13 @@ impl SigningKey {
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        let sig = ecdsa::SigningKey::from_bytes(bytes.into()).context("error parsing key")?;
-        Ok(SigningKey(sig))
+        // from_slice also accepts keys a few bytes shorter and pads them with zeros, but
+        // to_base64 always writes KEY_LEN bytes, so a shorter key is a mistake.
+        if bytes.len() != KEY_LEN {
+            bail!("invalid key size {}, expected {}", bytes.len(), KEY_LEN);
+        }
+        let key = Key::from_slice(bytes).context("error parsing key")?;
+        Ok(SigningKey(key))
     }
 
     pub fn generate() -> Self {
@@ -91,6 +97,8 @@ impl AsRef<Key> for SigningKey {
 
 #[cfg(test)]
 mod test {
+    use base64::Engine as _;
+
     use super::{DeviceID, SigningKey};
 
     #[test]
@@ -115,5 +123,17 @@ mod test {
 
         let parsed_signing_key = parsed_signing_key.unwrap();
         assert!(DeviceID::from_string(&parsed_signing_key, &device_id_str).is_ok());
+    }
+
+    #[test]
+    fn test_invalid_signing_key() {
+        assert!(SigningKey::from_string("").is_err());
+        assert!(SigningKey::from_string("not base64!").is_err());
+        let encode = |bytes: &[u8]| base64::engine::general_purpose::STANDARD.encode(bytes);
+        assert!(SigningKey::from_string(&encode(&[1; 31])).is_err());
+        assert!(SigningKey::from_string(&encode(&[1; 33])).is_err());
+        // zero is not a valid P-256 scalar
+        assert!(SigningKey::from_string(&encode(&[0; 32])).is_err());
+        assert!(SigningKey::from_string(&encode(&[1; 32])).is_ok());
     }
 }
