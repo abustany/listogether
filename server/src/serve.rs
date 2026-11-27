@@ -37,7 +37,7 @@ pub async fn serve(
     let app_state = Arc::new(AppState {
         id_signing_key: id_signing_key.to_owned(),
         list_store: Box::new(liststore::FSStore::new(lists_dir)),
-        doc_locks: multilock::MultiLock::new(),
+        doc_locks: multilock::MultiLock::default(),
     });
 
     let app = Router::new()
@@ -219,14 +219,10 @@ async fn sync_doc(
 
     info!("synchronizing document {}", &doc_id);
 
-    let doc = state
-        .doc_locks
-        .with_lock(&doc_id, || {
-            sync_doc_locked(Arc::clone(&state), socket, &doc_id, expected_author_id)
-        })
-        .await;
+    let _doc_lock = state.doc_locks.lock(&doc_id).await;
+    let doc = sync_doc_locked(Arc::clone(&state), socket, &doc_id, expected_author_id).await?;
 
-    Ok(Some(doc?))
+    Ok(Some(doc))
 }
 
 async fn receive_protocol_and_device_id(
