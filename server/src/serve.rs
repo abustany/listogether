@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::{bail, Context, Result};
 use automerge::{sync::SyncDoc, ActorId, Automerge};
@@ -87,8 +87,15 @@ async fn sync_handler(State(state): State<Arc<AppState>>, ws: WebSocketUpgrade) 
     ws.on_upgrade(|socket| sync_socket_handler(state, socket))
 }
 
+// A client that stops responding must not keep a document locked.
+const RECEIVE_TIMEOUT: Duration = Duration::from_secs(10);
+
 async fn receive_binary_message(socket: &mut WebSocket) -> Result<Option<Vec<u8>>> {
-    let Some(msg) = socket.recv().await.transpose()? else {
+    let Some(msg) = tokio::time::timeout(RECEIVE_TIMEOUT, socket.recv())
+        .await
+        .context("timed out waiting for a message")?
+        .transpose()?
+    else {
         return Ok(None);
     };
 
