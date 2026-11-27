@@ -37,7 +37,7 @@
         };
         rust = pkgs.rust-bin.fromRustupToolchainFile ./server/rust-toolchain.toml;
         craneLib = (crane.mkLib pkgs).overrideToolchain rust;
-        rev = if (self ? shortRev) then self.shortRev else "dev";
+        rev = self.shortRev or self.dirtyShortRev;
 
         pnpmManifests = [
           ./package.json
@@ -123,12 +123,53 @@
             '';
           }
         );
+
+        nobody = "65534:65534";
+
+        image = pkgs.dockerTools.buildLayeredImage {
+          name = "listogether";
+          tag = server.version;
+          contents = [
+            server
+            # passwd and group entries for nobody
+            pkgs.dockerTools.fakeNss
+          ];
+          fakeRootCommands = ''
+            mkdir -p ./data
+            chown ${nobody} ./data
+          '';
+          config = {
+            Entrypoint = [ "/bin/listogether-server" ];
+            Cmd = [
+              "serve"
+              "--lists-dir"
+              "/data"
+            ];
+            User = nobody;
+            WorkingDir = "/data";
+            Volumes = {
+              "/data" = { };
+            };
+            Env = [ "LISTEN_ADDRESS=0.0.0.0:8789" ];
+            ExposedPorts = {
+              "8789/tcp" = { };
+            };
+            # ghcr.io uses this to attach the package to the repository
+            Labels = {
+              "org.opencontainers.image.source" = "https://github.com/abustany/listogether";
+            };
+          };
+        };
       in
       with pkgs;
       {
         packages = {
           inherit ui server;
           default = server;
+        }
+        # dockerTools only builds Linux images: on macOS, build packages.<linux system>.docker
+        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+          docker = image;
         };
 
         apps.default = flake-utils.lib.mkApp { drv = server; };

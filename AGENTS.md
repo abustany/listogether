@@ -15,7 +15,7 @@ Collaborative todo lists. Offline-first PWA, synced with Automerge.
 - E2E: `cd e2e && pnpm test`, `pnpm typecheck`, `pnpm check` (oxlint + oxfmt).
 - Formatting: oxfmt, 120 columns.
 - Nix: `nix build .#ui` builds the UI, `nix build` builds the server with the UI embedded, `nix run . -- serve …` runs it. The server derivation sets `allowedReferences`, so the build fails if the binary refers to anything other than glibc and gcc's `libgcc` output (libiconv on macOS). When `pnpm-lock.yaml` changes, update the `pnpmDeps` hash in `flake.nix`: set it to `""`, build, and copy the hash from the error.
-- Docker: run `pnpm --filter listogether build` first. The image copies `ui/dist` from the host and does not build the UI.
+- Docker: the image is built with Nix, `nix build .#packages.x86_64-linux.docker` (on macOS this needs a Linux builder), then `docker load < result`. The tag is the git short rev. It has no init process: start it with `docker run --init`. It listens on port 8789, stores the lists in the `/data` volume, runs as `nobody` and needs `ID_SIGNING_KEY`.
 
 ## UI architecture
 - `ListStore.tsx`: IndexedDB storage, device ID, Automerge docs, and sync over WebSocket `/api/v1/document/sync`. Exposed through a context (`useLists`).
