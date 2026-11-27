@@ -1,8 +1,9 @@
-use std::io::ErrorKind;
+use std::io::{ErrorKind, Write};
 use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
 use automerge::Automerge;
+use tempfile::NamedTempFile;
 use uuid::{Uuid, Variant, Version};
 
 use crate::device_id::RAW_DEVICE_ID_LEN;
@@ -45,7 +46,15 @@ impl ListStore for FSStore {
     }
 
     fn save(&self, id: &str, doc: &mut Automerge) -> Result<()> {
-        std::fs::write(self.list_path(id)?, doc.save()).context("error writing file")
+        let path = self.list_path(id)?;
+        // The temporary file name starts with a dot, so it is never a valid document ID.
+        let mut file =
+            NamedTempFile::new_in(&self.base_dir).context("error creating temporary file")?;
+        file.write_all(&doc.save()).context("error writing file")?;
+        // Without this, the rename can reach the disk before the data, and a crash leaves an empty file.
+        file.as_file().sync_all().context("error syncing file")?;
+        file.persist(path).context("error renaming file")?;
+        Ok(())
     }
 }
 
@@ -70,7 +79,9 @@ fn is_list_ids_doc_id(id: &str) -> bool {
 
 #[cfg(test)]
 mod test {
-    use super::is_valid_doc_id;
+    use automerge::{transaction::Transactable, Automerge, ROOT};
+
+    use super::{is_valid_doc_id, FSStore, ListStore};
 
     const LIST_ID: &str = "0b6f1c2e-6c1a-4f0e-9a4e-3f5b2d8c7e1a";
 
@@ -102,5 +113,44 @@ mod test {
         assert!(!is_valid_doc_id("e1b75c93df58d7a61a9c08d048c5f97"));
         assert!(!is_valid_doc_id("e1b75c93df58d7a61a9c08d048c5f9780"));
         assert!(!is_valid_doc_id("g1b75c93df58d7a61a9c08d048c5f978"));
+    }
+
+    fn file_names(dir: &std::path::Path) -> Vec<String> {
+        std::fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn test_save_and_load() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = FSStore::new(dir.path());
+        assert!(store.load(LIST_ID).unwrap().is_none());
+
+        let mut doc = Automerge::new();
+        let mut tx = doc.transaction();
+        tx.put(ROOT, "name", "groceries").unwrap();
+        tx.commit();
+        store.save(LIST_ID, &mut doc).unwrap();
+
+        let mut tx = doc.transaction();
+        tx.put(ROOT, "name", "shopping").unwrap();
+        tx.commit();
+        store.save(LIST_ID, &mut doc).unwrap();
+
+        let loaded = store.load(LIST_ID).unwrap().unwrap();
+        assert_eq!(loaded.get_heads(), doc.get_heads());
+        assert_eq!(file_names(dir.path()), [LIST_ID]);
+    }
+
+    #[test]
+    fn test_invalid_id_writes_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = FSStore::new(dir.path());
+
+        assert!(store.save("../x", &mut Automerge::new()).is_err());
+        assert!(store.load("../x").is_err());
+        assert!(file_names(dir.path()).is_empty());
     }
 }
