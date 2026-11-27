@@ -73,7 +73,7 @@ fn is_list_id(id: &str) -> bool {
 }
 
 // Each device stores the IDs of its lists in a document named after its raw device ID, in hex.
-fn is_list_ids_doc_id(id: &str) -> bool {
+pub fn is_list_ids_doc_id(id: &str) -> bool {
     id.len() == 2 * RAW_DEVICE_ID_LEN && id.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 

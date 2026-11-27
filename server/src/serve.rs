@@ -201,10 +201,24 @@ async fn sync_doc(
 
     info!("synchronizing document {}", doc_id);
 
+    check_doc_access(&doc_id, expected_author_id)?;
+
     let _doc_lock = state.doc_locks.lock(&doc_id).await;
     sync_doc_locked(state, socket, &doc_id, expected_author_id)
         .await
         .map(Some)
+}
+
+// The list IDs document of a device is named after its raw device ID. That ID is not secret: it is
+// the actor ID of every change the device makes, so the devices it shares lists with know it.
+fn check_doc_access(doc_id: &str, device_actor_id: &ActorId) -> Result<()> {
+    if liststore::is_list_ids_doc_id(doc_id) && doc_id != device_actor_id.to_hex_string() {
+        bail!(
+            "document {} is the list IDs document of another device",
+            doc_id
+        );
+    }
+    Ok(())
 }
 
 async fn receive_protocol_and_device_id(
@@ -297,4 +311,21 @@ fn index_html() -> Response {
 
 fn not_found() -> Response {
     (StatusCode::NOT_FOUND, "404").into_response()
+}
+
+#[cfg(test)]
+mod test {
+    use automerge::ActorId;
+
+    use super::check_doc_access;
+
+    #[test]
+    fn test_check_doc_access() {
+        let device = ActorId::from(&[0xe1u8; 16]);
+        let other_device = ActorId::from(&[0x42u8; 16]);
+
+        check_doc_access(&device.to_hex_string(), &device).unwrap();
+        check_doc_access("0b6f1c2e-6c1a-4f0e-9a4e-3f5b2d8c7e1a", &device).unwrap();
+        assert!(check_doc_access(&other_device.to_hex_string(), &device).is_err());
+    }
 }
