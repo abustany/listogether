@@ -35,8 +35,8 @@ impl DeviceID {
             return Err(anyhow!("invalid ID size"));
         }
 
-        let sig: Signature =
-            Signature::from_bytes((&bytes[0..SIGNATURE_LEN]).into()).context("error parsing signature")?;
+        let sig: Signature = Signature::from_bytes((&bytes[0..SIGNATURE_LEN]).into())
+            .context("error parsing signature")?;
         signing_key
             .as_ref()
             .as_ref()
@@ -46,16 +46,8 @@ impl DeviceID {
         Ok(DeviceID(bytes))
     }
 
-    pub fn to_string(&self) -> String {
-        DeviceID::encode(&self.0)
-    }
-
-    pub fn raw<'a>(&'a self) -> &'a[u8] {
+    pub fn raw(&self) -> &[u8] {
         &self.0[SIGNATURE_LEN..]
-    }
-
-    pub fn signature<'a>(&'a self) -> &'a[u8] {
-        &self.0[..SIGNATURE_LEN]
     }
 
     pub fn encode(data: &[u8]) -> String {
@@ -63,9 +55,17 @@ impl DeviceID {
     }
 }
 
+impl std::fmt::Display for DeviceID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&DeviceID::encode(&self.0))
+    }
+}
+
 impl SigningKey {
     pub fn from_string(s: &str) -> Result<Self> {
-        let sig_bytes = base64::engine::general_purpose::STANDARD.decode(s).context("error decoding base64")?;
+        let sig_bytes = base64::engine::general_purpose::STANDARD
+            .decode(s)
+            .context("error decoding base64")?;
         Self::from_bytes(&sig_bytes)
     }
 
@@ -78,7 +78,7 @@ impl SigningKey {
         SigningKey(Key::random(&mut rand::thread_rng()))
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn to_base64(&self) -> String {
         base64::engine::general_purpose::STANDARD.encode(self.as_ref().to_bytes())
     }
 }
@@ -109,7 +109,7 @@ mod test {
         let signing_key = SigningKey::generate();
         let device_id_str = DeviceID::new(&signing_key).to_string();
 
-        let signing_key_str = signing_key.to_string();
+        let signing_key_str = signing_key.to_base64();
         let parsed_signing_key = SigningKey::from_string(&signing_key_str);
         assert!(parsed_signing_key.is_ok());
 

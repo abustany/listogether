@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, future::Future};
+use std::{collections::HashMap, future::Future, sync::Arc};
 
 pub struct MultiLock {
     locks: std::sync::Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
@@ -6,11 +6,14 @@ pub struct MultiLock {
 
 impl MultiLock {
     pub fn new() -> Self {
-        MultiLock { locks: std::sync::Mutex::new(HashMap::new()) }
+        MultiLock {
+            locks: std::sync::Mutex::new(HashMap::new()),
+        }
     }
 
     pub async fn with_lock<A, B>(&self, key: &str, f: impl FnOnce() -> A) -> B
-    where A: Future<Output=B>
+    where
+        A: Future<Output = B>,
     {
         loop {
             let maybe_doc_lock = {
@@ -28,7 +31,9 @@ impl MultiLock {
 
             {
                 let mut locks = self.locks.lock().unwrap();
-                if locks.contains_key(key) { continue } // we've been raced, try again
+                if locks.contains_key(key) {
+                    continue;
+                } // we've been raced, try again
                 locks.insert(key.to_owned(), Arc::clone(&mutex));
             };
 

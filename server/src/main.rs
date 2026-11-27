@@ -2,7 +2,6 @@ use std::net::SocketAddr;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use tracing_subscriber;
 
 mod device_id;
 mod dump_doc;
@@ -52,16 +51,17 @@ async fn main() -> Result<()> {
             .with_env_filter(
                 tracing_subscriber::filter::EnvFilter::from_default_env()
                     .add_directive(tracing_subscriber::filter::LevelFilter::INFO.into())
-                    .add_directive("tower_http=trace".parse()?)
+                    .add_directive("tower_http=trace".parse()?),
             )
-            .finish()
-    ).expect("setting default subscriber failed");
+            .finish(),
+    )
+    .expect("setting default subscriber failed");
 
     let args = Args::parse();
 
     match args.command {
         Commands::GenerateSigningKey => {
-            println!("{}", device_id::SigningKey::generate().to_string());
+            println!("{}", device_id::SigningKey::generate().to_base64());
             Ok(())
         }
         Commands::Serve {
@@ -79,9 +79,7 @@ async fn main() -> Result<()> {
 
             Ok(())
         }
-        Commands::DumpDocument{
-            path,
-        } => {
+        Commands::DumpDocument { path } => {
             dump_doc::dump_doc(&path)?;
             Ok(())
         }
