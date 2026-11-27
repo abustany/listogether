@@ -12,6 +12,7 @@ import { createSelectionInput } from "./selection-input";
 import { createInputRefs, inputRefPath, nextInputRefPath, previousInputRefPath } from "./input-refs";
 import { SelectionBanner } from "./SelectionBanner";
 import { useBackToLists } from "./back-to-lists";
+import { listTitleTransitionName } from "./view-transition";
 
 const selectedRow = "bg-[#b3d7ff]";
 
@@ -283,20 +284,27 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
           <A title="Back to lists" href="/" onClick={backToLists}>
             <ArrowLeft size="1em" />
           </A>
-          <input
-            ref={(el) => {
-              nameInputRef = el;
-              refs.set(el);
-            }}
-            onKeyDown={(ev) => {
-              onItemKeyDown(undefined, undefined, ev);
-            }}
-            type="text"
-            class={cn(transparentInput, "flex-1 p-[0.3rem] pb-2 border-b border-b-[#999]")}
-            value={props.list.name}
-            placeholder="List name"
-            readOnly={selection.active()}
-          />
+          {/* The border and padding are not on the input, so that they are not
+              part of the title view transition. box-content keeps the input
+              1em tall, the same height relative to its text as the title on the
+              lists page. */}
+          <div class="flex-1 flex box-content px-[0.3rem] border-b border-b-[#999]">
+            <input
+              ref={(el) => {
+                nameInputRef = el;
+                refs.set(el);
+              }}
+              onKeyDown={(ev) => {
+                onItemKeyDown(undefined, undefined, ev);
+              }}
+              type="text"
+              class={cn(transparentInput, "flex-1 min-w-0 p-0")}
+              style={{ "view-transition-name": listTitleTransitionName(props.list.id) }}
+              value={props.list.name}
+              placeholder="List name"
+              readOnly={selection.active()}
+            />
+          </div>
         </header>
 
         <For each={sections}>

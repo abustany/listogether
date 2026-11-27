@@ -10,6 +10,7 @@ import { Link } from "./icons/Link";
 import { Modal } from "./Modal";
 import { cn } from "./cn";
 import { fromListsState } from "./back-to-lists";
+import { listTitleTransitionName } from "./view-transition";
 
 const textButton =
   "text-inherit border-0 bg-transparent text-left cursor-pointer font-[inherit] flex items-center gap-[0.2rem]";
@@ -77,7 +78,9 @@ const ListItem: Component<{
   return (
     <li class={listLi} aria-labelledby={linkId}>
       <A id={linkId} class="flex-[1_1_100%] p-4" href={`/${props.id}`} state={fromListsState}>
-        {props.name || "(unnamed list)"}
+        <span class="inline-block leading-none" style={{ "view-transition-name": listTitleTransitionName(props.id) }}>
+          {props.name || "(unnamed list)"}
+        </span>
       </A>
       <ShareButton
         onShare={() => {

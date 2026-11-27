@@ -6,7 +6,7 @@ import { Lists } from "./Lists";
 import { Import } from "./Import";
 import { ListStoreProvider } from "./ListStore";
 import { UpdateIndicator } from "./UpdateIndicator";
-import { canStartRouteTransition, directionTo, startRouteTransition, trackRouting } from "./view-transition";
+import { canStartRouteTransition, startRouteTransition, trackRouting } from "./view-transition";
 
 const Root: Component<RouteSectionProps<unknown>> = (props) => {
   trackRouting();
@@ -17,7 +17,7 @@ const Root: Component<RouteSectionProps<unknown>> = (props) => {
     if (typeof ev.to !== "string" || !canStartRouteTransition()) return;
 
     ev.preventDefault();
-    startRouteTransition(directionTo(ev.to), () => ev.retry(true));
+    startRouteTransition(ev.from.pathname, ev.to, () => ev.retry(true));
   });
 
   return (

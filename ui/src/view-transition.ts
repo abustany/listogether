@@ -1,5 +1,5 @@
-import { createEffect, on } from "solid-js";
-import { useIsRouting } from "@solidjs/router";
+import { createEffect, createSignal, on } from "solid-js";
+import { useIsRouting, useLocation } from "@solidjs/router";
 
 // Route changes are animated with the View Transitions API. The animations
 // themselves are in index.css, and depend on the data-nav attribute set on the
@@ -9,6 +9,11 @@ import { useIsRouting } from "@solidjs/router";
 // so the router must not update the DOM before that. In-app navigations are held
 // back from a useBeforeLeave handler (see App.tsx), and history navigations
 // (back/forward) by interceptHistoryNavigations below.
+//
+// Between the lists page and a list page, the list title also moves from its
+// row on the lists page to the header of the list page (or back). Only one
+// element on a page can have a given view-transition-name, so only the row of
+// the list being opened or closed gets the name, during the transition.
 
 type NavDirection = "forward" | "back";
 
@@ -19,9 +24,20 @@ const RoutingTimeoutMs = 500;
 let activeTransition: ViewTransition | undefined;
 let routingWaiters: (() => void)[] = [];
 
+const ListTitleTransitionName = "list-title";
+const [transitionListId, setTransitionListId] = createSignal<string | null>(null);
+
+// The path of the page before a history navigation, which has already updated
+// window.location when the popstate event fires.
+let currentPath = window.location.pathname;
+
 // Must be called once, from a component inside the router.
 export function trackRouting() {
   const isRouting = useIsRouting();
+  const location = useLocation();
+  createEffect(() => {
+    currentPath = location.pathname;
+  });
   createEffect(
     on(isRouting, (routing) => {
       if (routing) return;
@@ -43,16 +59,31 @@ export function canStartRouteTransition(): boolean {
   return typeof document.startViewTransition === "function" && activeTransition === undefined;
 }
 
-// Going to the lists page is "back", everything else is "forward".
-export function directionTo(to: string): NavDirection {
-  return new URL(to, window.location.href).pathname === "/" ? "back" : "forward";
+function listIdFromPath(path: string): string | null {
+  const match = /^\/([^/]+)$/.exec(path);
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
-// Starts a view transition. navigate must start the navigation; the transition
-// waits for the router to render the new page.
-export function startRouteTransition(direction: NavDirection, navigate: () => void) {
+// The view-transition-name of the title of the list with the given ID, on the
+// lists page and on the list page.
+export function listTitleTransitionName(listId: string): string | undefined {
+  return transitionListId() === listId ? ListTitleTransitionName : undefined;
+}
+
+// Starts a view transition from the from path to the to URL. navigate must
+// start the navigation; the transition waits for the router to render the new
+// page.
+export function startRouteTransition(from: string, to: string, navigate: () => void) {
+  const toPath = new URL(to, window.location.href).pathname;
+  // Going to the lists page is "back", everything else is "forward".
+  const direction: NavDirection = toPath === "/" ? "back" : "forward";
   const root = document.documentElement;
   root.dataset.nav = direction;
+  if (from === "/") {
+    setTransitionListId(listIdFromPath(toPath));
+  } else if (toPath === "/") {
+    setTransitionListId(listIdFromPath(from));
+  }
 
   const transition = document.startViewTransition(() => {
     navigate();
@@ -66,6 +97,7 @@ export function startRouteTransition(direction: NavDirection, navigate: () => vo
   const cleanup = () => {
     activeTransition = undefined;
     delete root.dataset.nav;
+    setTransitionListId(null);
   };
   transition.finished.then(cleanup, cleanup);
 }
@@ -90,7 +122,7 @@ export function interceptHistoryNavigations() {
       if (replaying || ev.hasUAVisualTransition !== false || !canStartRouteTransition()) return;
 
       ev.stopImmediatePropagation();
-      startRouteTransition(directionTo(window.location.href), () => {
+      startRouteTransition(currentPath, window.location.href, () => {
         replaying = true;
         try {
           window.dispatchEvent(new PopStateEvent("popstate", { state: ev.state }));

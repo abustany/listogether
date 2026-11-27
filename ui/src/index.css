@@ -66,6 +66,25 @@ html[data-nav="back"]::view-transition-new(root) {
   animation-name: slide-from-left;
 }
 
+/* The list title moves between the lists page and the list page. Both pages
+   show the same text, so there is no cross-fade: only the new snapshot is
+   shown, and it scales with the group. Its width follows its height, because
+   the old and new elements have different aspect ratios. This only works if
+   the text has the same size relative to the element height on both pages. */
+::view-transition-group(list-title) {
+  animation-duration: 0.35s;
+  animation-timing-function: ease-in-out;
+}
+::view-transition-old(list-title) {
+  animation: none;
+  opacity: 0;
+}
+::view-transition-new(list-title) {
+  animation: none;
+  height: 100%;
+  width: auto;
+}
+
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*),
   ::view-transition-old(*),
