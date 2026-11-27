@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "check": "oxlint tests fixtures && oxfmt --check tests fixtures playwright.config.ts",
     "dev": "playwright test --ui",
     "format": "oxfmt --write tests fixtures playwright.config.ts",
     "lint": "oxlint tests fixtures",

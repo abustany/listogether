@@ -1,6 +1,7 @@
 packages:
   - ui
   - e2e
+  - server
 
 allowBuilds:
   core-js: false
