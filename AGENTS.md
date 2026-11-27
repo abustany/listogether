@@ -7,6 +7,7 @@ Collaborative todo lists. Offline-first PWA, synced with Automerge.
 - `server/`: Rust (axum 0.6, automerge 0.3). Embeds `ui/dist` with rust-embed, so build the UI first.
 - `e2e/`: Playwright, Chromium only. Expects the app on `localhost:3000` (`E2E_BASE_URL`). Shared helpers are in `e2e/fixtures/list.ts`. `*-touch.spec.ts` files run in the `mobile` project (Pixel 7 emulation).
 - Dev env: `flake.nix` via direnv.
+- CI: `.github/workflows/ci.yml`, on push to `master`. It runs `pnpm -r check` and `pnpm -r typecheck`, builds the Nix image, starts it on port 3000, runs `pnpm -r test` against it, then pushes the image to `ghcr.io` and attests it.
 
 ## Commands
 - All packages (`ui`, `e2e`, `server`) use the same script names. Run them from the root with `pnpm -r check` (lint + format), `pnpm -r typecheck` and `pnpm -r test`. `pnpm -r test` includes the e2e tests, which need the app running.
