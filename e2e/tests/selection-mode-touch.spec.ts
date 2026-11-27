@@ -122,3 +122,31 @@ test("Long press on the item text does not start the mode", async ({ page }) => 
   await touch.release();
   await expect(l.banner).toBeHidden();
 });
+
+test("Section menu", async ({ page }) => {
+  const l = locators(page);
+  await fillList(page, "Menu", [Fruits, Bakery]);
+  const touch = await touchscreen(page);
+
+  await test.step("A long press on the button starts the mode, without opening the menu", async () => {
+    await touch.press(l.sectionMenu(0));
+    await touch.release();
+    await expect(l.banner).toContainText("1 section selected");
+    await expect(l.menuItem("Select")).toBeHidden();
+    await l.banner.getByRole("button", { name: "Done" }).tap();
+    await expect(l.banner).toBeHidden();
+  });
+
+  await test.step("A tap opens the menu, without starting the mode", async () => {
+    await l.sectionMenu(1).tap();
+    await expect(l.menuItem("Select")).toBeVisible();
+    await expect(l.banner).toBeHidden();
+  });
+
+  await test.step("Select starts the mode with the section", async () => {
+    await l.menuItem("Select").tap();
+    await expect(l.banner).toContainText("1 section selected");
+    await expect(l.titleRow(1)).toHaveAttribute("data-selected", "true");
+    await expect(l.selectedRows).toHaveCount(2);
+  });
+});

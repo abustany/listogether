@@ -1,6 +1,7 @@
 import { createStore } from "solid-js/store";
 
-import { Item, List as ListSchema, ListChange, Section } from "./list-schema";
+import { Item, List as ListSchema, ListChange, Section, SortOrder } from "./list-schema";
+import { sortedOrder } from "./item-order";
 
 function newItemSentinel(): Item {
   return { text: "", checked: false };
@@ -67,6 +68,21 @@ export function createListEditor(list: ListSchema) {
       const updatedSections = [...sections];
       updatedSections.splice(idx, 1);
       setSections(updatedSections);
+    },
+
+    // Returns the new index of each item, by old index.
+    sortSection(idx: number, by: SortOrder): number[] {
+      changes.push({ type: "sort-section", idx, by });
+
+      const items = sections[idx].items;
+      const order = sortedOrder(items.slice(0, -1), by);
+      setSections(idx, "items", [...order.map((i) => items[i]), items[items.length - 1]]);
+
+      const newIndexes: number[] = [];
+      order.forEach((oldIdx, newIdx) => {
+        newIndexes[oldIdx] = newIdx;
+      });
+      return newIndexes;
     },
 
     // Items

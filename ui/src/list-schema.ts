@@ -8,6 +8,8 @@ export interface Section {
   items: Item[];
 }
 
+export type SortOrder = "name";
+
 export interface List {
   id: string;
   name: string;
@@ -19,6 +21,7 @@ export type ListChange =
   | { type: "append-section"; name: string }
   | { type: "rename-section"; idx: number; name: string }
   | { type: "delete-section"; idx: number }
+  | { type: "sort-section"; idx: number; by: SortOrder }
   | { type: "append-item"; sectionIdx: number; itemIdx: number; text: string }
   | { type: "rename-item"; sectionIdx: number; itemIdx: number; text: string }
   | {

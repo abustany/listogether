@@ -11,6 +11,7 @@ import { createListSelection, Row, rowKey, selectableRows } from "./ListSelectio
 import { createSelectionInput } from "./selection-input";
 import { createInputRefs, inputRefPath, nextInputRefPath, previousInputRefPath } from "./input-refs";
 import { SelectionBanner } from "./SelectionBanner";
+import { SectionMenu } from "./SectionMenu";
 import { useBackToLists } from "./back-to-lists";
 import { listTitleTransitionName } from "./view-transition";
 
@@ -33,6 +34,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
     appendSection,
     renameSection,
     deleteSection,
+    sortSection,
     appendItem,
     renameItem,
     deleteItem,
@@ -120,6 +122,23 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
     });
 
     return focusPath;
+  };
+
+  const sortSectionByName = (sectionIdx: number) => {
+    const newIndexes = sortSection(sectionIdx, "name");
+    refs.remap((s, i) =>
+      inputRefPath(s, s === sectionIdx && i !== undefined && i < newIndexes.length ? newIndexes[i] : i),
+    );
+  };
+
+  const confirmDeleteSection = (sectionIdx: number) => {
+    const { name, items } = sections[sectionIdx];
+    const nItems = items.length - 1;
+    const withItems = nItems === 0 ? "" : nItems === 1 ? " and its item" : ` and its ${nItems} items`;
+
+    if (confirm(`Delete the section "${name || "Unnamed section"}"${withItems}?`)) {
+      deleteRows((row) => row.s === sectionIdx);
+    }
   };
 
   const insertItem = (sectionIdx: number, itemIdx: number, text: string) => {
@@ -319,13 +338,21 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
               <section class="flex-none flex flex-col">
                 <div
                   class={cn(
-                    "pl-8",
+                    "relative pl-8",
                     !isLast() && "select-none [-webkit-touch-callout:none]",
                     isTitleSelected() && selectedRow,
                   )}
                   data-section={isLast() ? undefined : sectionIndex()}
                   data-selected={isTitleSelected() ? "true" : undefined}
                 >
+                  <Show when={!isLast()}>
+                    <SectionMenu
+                      invisible={selection.active()}
+                      onSelect={() => selection.start({ kind: "title", s: sectionIndex() })}
+                      onSort={() => sortSectionByName(sectionIndex())}
+                      onDelete={() => confirmDeleteSection(sectionIndex())}
+                    />
+                  </Show>
                   <input
                     type="text"
                     ref={(el) => {

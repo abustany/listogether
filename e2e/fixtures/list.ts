@@ -19,6 +19,8 @@ export const locators = (page: Page) => {
     checkbox: (s: number, i: number) => section(s).getByRole("listitem").nth(i).getByRole("checkbox"),
     itemRow: (s: number, i: number) => section(s).getByRole("listitem").nth(i),
     titleRow: (s: number) => section(s).locator("div[data-section]"),
+    sectionMenu: (s: number) => section(s).getByRole("button", { name: "Section menu" }),
+    menuItem: (name: string) => page.getByRole("menu", { name: "Section" }).getByRole("menuitem", { name }),
     selectedRows: page.locator("[data-selected]"),
     banner: page.getByRole("toolbar", { name: "Selection" }),
   };

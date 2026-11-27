@@ -20,12 +20,13 @@ function rowAtPoint(x: number, y: number): Row | undefined {
 }
 
 // Not from an item text or a section title input, where a long press selects
-// text.
+// text. The section menu button covers most of the padding of a title row, so
+// a long press on it starts the mode too.
 function isLongPressTarget(el: Element): boolean {
   const rowEl = el.closest("[data-section]");
   if (!rowEl) return false;
   if (rowEl.matches("li")) return el.closest("[contenteditable]") === null;
-  return el === rowEl;
+  return el === rowEl || el.closest("button") !== null;
 }
 
 const LongPressMs = 450;

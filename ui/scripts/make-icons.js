@@ -4,7 +4,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 // Icons we want to generate.
-const ICONS = ["arrow-left", "check", "link", "plus", "refresh-cw", "share-2", "trash-2", "x"];
+const ICONS = ["arrow-left", "check", "link", "more-vertical", "plus", "refresh-cw", "share-2", "trash-2", "x"];
 
 const kebabToCamelRe = /-(.)/g;
 

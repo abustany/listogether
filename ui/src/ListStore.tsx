@@ -6,7 +6,8 @@ import { DBSchema, IDBPDatabase, openDB, StoreNames } from "idb";
 import { toByteArray as decodeBase64 } from "base64-js";
 
 import { captureException } from "./errors";
-import { List, ListChange } from "./list-schema";
+import { Item, List, ListChange } from "./list-schema";
+import { sortedOrder } from "./item-order";
 
 interface ListIds {
   ids: string[];
@@ -22,6 +23,8 @@ function describeChange(c: ListChange): string {
       return `Rename section #${1 + c.idx} to ${c.name}`;
     case "delete-section":
       return `Delete section #${1 + c.idx}`;
+    case "sort-section":
+      return `Sort section #${1 + c.idx} by ${c.by}`;
     case "append-item":
       return `Add new item ${c.text} at index #${1 + c.itemIdx} to section #${1 + c.sectionIdx}`;
     case "rename-item":
@@ -30,6 +33,24 @@ function describeChange(c: ListChange): string {
       return `${c.checked ? "Check" : "Uncheck"} item #${1 + c.itemIdx} of section #${1 + c.sectionIdx}`;
     case "delete-item":
       return `Delete item #${1 + c.itemIdx} of section #${1 + c.sectionIdx}`;
+  }
+}
+
+// Automerge lists have no move operation: moving an item deletes it and inserts
+// a copy, which loses the edits made to it at the same time on other devices.
+// So only the items that are out of place move.
+function sortItems(items: Item[], order: number[]): void {
+  const current = items.map((_, i) => i);
+
+  for (let k = 0; k < order.length; k++) {
+    const j = current.indexOf(order[k]);
+    if (j === k) continue;
+
+    const { text, checked } = items[j];
+    items.splice(j, 1);
+    items.splice(k, 0, { text, checked });
+    current.splice(j, 1);
+    current.splice(k, 0, order[k]);
   }
 }
 
@@ -46,6 +67,9 @@ function applyChange(doc: List, c: ListChange): void {
       return;
     case "delete-section":
       doc.sections.splice(c.idx, 1);
+      return;
+    case "sort-section":
+      sortItems(doc.sections[c.idx].items, sortedOrder(doc.sections[c.idx].items, c.by));
       return;
     case "append-item":
       doc.sections[c.sectionIdx].items.splice(c.itemIdx, 0, { text: c.text, checked: false });
