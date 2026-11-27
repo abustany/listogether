@@ -25,6 +25,11 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
 
   let nameInputRef: HTMLInputElement;
 
+  // The name is only set when the editor is created: the lists are reloaded
+  // after each sync, and Solid writes `value` again each time, even when it
+  // did not change, which would overwrite what the user typed.
+  const initialName = props.list.name;
+
   const {
     sections,
     changes,
@@ -319,7 +324,7 @@ const ListLoaded: Component<{ list: ListSchema }> = (props) => {
               type="text"
               class={cn(transparentInput, "flex-1 min-w-0 p-0")}
               style={{ "view-transition-name": listTitleTransitionName(props.list.id) }}
-              value={props.list.name}
+              value={initialName}
               placeholder="List name"
               readOnly={selection.active()}
             />
