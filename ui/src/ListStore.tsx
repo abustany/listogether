@@ -360,7 +360,7 @@ class ListStore {
         if (otherIsFinished) {
           // everyone is done
           console.log("received empty message, sync done");
-          ws.removeEventListener("message", onMessage);
+          removeListeners();
           storage
             .saveSyncState(docId, syncState)
             .then((_) => resolve(doc))
@@ -384,7 +384,7 @@ class ListStore {
         try {
           unsafeTick(incomingMessage);
         } catch (e) {
-          reject(e);
+          fail(e);
         }
       };
 
@@ -392,7 +392,7 @@ class ListStore {
         const data = ev.data;
 
         if (!(data instanceof ArrayBuffer)) {
-          reject("received non-binary message");
+          fail(new Error("received non-binary message"));
           return;
         }
 
@@ -400,7 +400,22 @@ class ListStore {
         tick(new Uint8Array(data));
       };
 
+      const onClose = (ev: CloseEvent): void => {
+        fail(new Error(`WebSocket closed with code ${ev.code} while synchronizing document ${docId}`));
+      };
+
+      const removeListeners = (): void => {
+        ws.removeEventListener("message", onMessage);
+        ws.removeEventListener("close", onClose);
+      };
+
+      const fail = (e: unknown): void => {
+        removeListeners();
+        reject(e);
+      };
+
       ws.addEventListener("message", onMessage);
+      ws.addEventListener("close", onClose);
 
       // send the document ID
       ws.send(str2uint8Array(docId));
@@ -441,6 +456,10 @@ class ListStore {
         try {
           res = await f(deviceId, ws);
           readyToClose = true;
+        } catch (e) {
+          // Without this, the error of f would be an unhandled rejection, and the promise would
+          // reject with the less precise error of onclose.
+          reject(e);
         } finally {
           ws.close();
         }
