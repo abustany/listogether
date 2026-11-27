@@ -1,7 +1,8 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, path::PathBuf};
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use tracing_subscriber::filter::{EnvFilter, LevelFilter};
 
 mod device_id;
 mod dump_doc;
@@ -10,10 +11,10 @@ mod multilock;
 mod serve;
 
 #[derive(Parser)]
-#[clap(author, version, about = "Listogether sync server", long_about = None)]
-#[clap(propagate_version = true)]
+#[command(author, version, about = "Listogether sync server", long_about = None)]
+#[command(propagate_version = true)]
 struct Args {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     command: Commands,
 }
 
@@ -26,40 +27,36 @@ enum Commands {
     Serve {
         /// Address on which to listen
         #[arg(long, default_value = "127.0.0.1:8789", env = "LISTEN_ADDRESS")]
-        listen_address: String,
+        listen_address: SocketAddr,
 
         /// Key used to sign device IDs (so they can't be forged)
+        // Parsed by hand: clap prints the invalid value in its error message, and this is a secret.
         #[arg(long, env = "ID_SIGNING_KEY")]
         id_signing_key: String,
 
         /// Base directory where lists are stored
         #[arg(long)]
-        lists_dir: String,
+        lists_dir: PathBuf,
     },
 
     /// Dump a document as JSON
     DumpDocument {
         #[arg(long)]
-        path: String,
+        path: PathBuf,
     },
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::FmtSubscriber::builder()
-            .with_env_filter(
-                tracing_subscriber::filter::EnvFilter::from_default_env()
-                    .add_directive(tracing_subscriber::filter::LevelFilter::INFO.into())
-                    .add_directive("tower_http=trace".parse()?),
-            )
-            .finish(),
-    )
-    .expect("setting default subscriber failed");
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::from_default_env()
+                .add_directive(LevelFilter::INFO.into())
+                .add_directive("tower_http=trace".parse()?),
+        )
+        .init();
 
-    let args = Args::parse();
-
-    match args.command {
+    match Args::parse().command {
         Commands::GenerateSigningKey => {
             println!("{}", device_id::SigningKey::generate().to_base64());
             Ok(())
@@ -69,19 +66,11 @@ async fn main() -> Result<()> {
             id_signing_key,
             lists_dir,
         } => {
-            let listen_address: SocketAddr = listen_address
+            let id_signing_key = id_signing_key
                 .parse()
-                .context("error parsing listen address")?;
-            let id_signing_key = device_id::SigningKey::from_string(&id_signing_key)
                 .context("error parsing ID signing key")?;
-
-            serve::serve(&listen_address, &lists_dir, &id_signing_key).await?;
-
-            Ok(())
+            serve::serve(listen_address, lists_dir, id_signing_key).await
         }
-        Commands::DumpDocument { path } => {
-            dump_doc::dump_doc(&path)?;
-            Ok(())
-        }
+        Commands::DumpDocument { path } => dump_doc::dump_doc(&path),
     }
 }

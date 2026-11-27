@@ -5,20 +5,16 @@ use time::OffsetDateTime;
 
 use crate::liststore::{self, ListStore};
 
-pub fn dump_doc(path: &str) -> Result<()> {
-    let path = Path::new(path);
+pub fn dump_doc(path: &Path) -> Result<()> {
     let Some(lists_dir) = path.parent() else {
         bail!("doc path has no parent");
     };
-    let Some(list_id) = path.file_name() else {
-        bail!("doc path has no name");
+    let Some(list_id) = path.file_name().and_then(|name| name.to_str()) else {
+        bail!("doc path has no name, or the name is not valid UTF-8");
     };
 
-    let store = liststore::FSStore::new(&lists_dir.to_string_lossy());
-    let Some(doc) = store
-        .load(&list_id.to_string_lossy())
-        .context("error loading document")?
-    else {
+    let store = liststore::FSStore::new(lists_dir);
+    let Some(doc) = store.load(list_id).context("error loading document")? else {
         bail!("doc not found");
     };
 
@@ -34,8 +30,6 @@ pub fn dump_doc(path: &str) -> Result<()> {
 
     println!("Changes:");
 
-    let empty_message = "<no message>".to_owned();
-
     for change in doc.get_changes(&[]).context("error getting changes")? {
         let date = OffsetDateTime::from_unix_timestamp(change.timestamp())
             .context("error parsing timestamp")?;
@@ -43,7 +37,7 @@ pub fn dump_doc(path: &str) -> Result<()> {
             "{} {} {}",
             change.hash(),
             date,
-            change.message().unwrap_or(&empty_message)
+            change.message().map_or("<no message>", String::as_str)
         );
     }
 

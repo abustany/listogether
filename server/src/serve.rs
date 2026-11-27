@@ -1,9 +1,8 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{bail, Context, Result};
 use automerge::{sync::SyncDoc, ActorId, Automerge};
 use axum::{
-    body::{boxed, Full},
     extract::{
         ws::{Message, WebSocket},
         State, WebSocketUpgrade,
@@ -11,7 +10,7 @@ use axum::{
     http::{header, StatusCode, Uri},
     response::{IntoResponse, Response},
     routing::{get, post},
-    Router,
+    Json, Router,
 };
 use rust_embed::RustEmbed;
 use serde::Serialize;
@@ -25,17 +24,17 @@ struct Assets;
 
 struct AppState {
     id_signing_key: device_id::SigningKey,
-    list_store: Box<dyn liststore::ListStore + Send + Sync>,
+    list_store: Box<dyn liststore::ListStore>,
     doc_locks: multilock::MultiLock,
 }
 
 pub async fn serve(
-    listen_address: &SocketAddr,
-    lists_dir: &str,
-    id_signing_key: &device_id::SigningKey,
+    listen_address: SocketAddr,
+    lists_dir: PathBuf,
+    id_signing_key: device_id::SigningKey,
 ) -> Result<()> {
     let app_state = Arc::new(AppState {
-        id_signing_key: id_signing_key.to_owned(),
+        id_signing_key,
         list_store: Box::new(liststore::FSStore::new(lists_dir)),
         doc_locks: multilock::MultiLock::default(),
     });
@@ -56,14 +55,12 @@ pub async fn serve(
                 ),
         );
 
-    info!("Starting server on http://{}", &listen_address);
+    info!("Starting server on http://{}", listen_address);
 
-    axum::Server::bind(listen_address)
+    axum::Server::bind(&listen_address)
         .serve(app.into_make_service())
         .await
-        .map_err(|err| anyhow!(err))?;
-
-    Ok(())
+        .context("server error")
 }
 
 async fn healthcheck_handler() -> &'static str {
@@ -76,13 +73,12 @@ struct DeviceRegisterResult {
     raw: String,
 }
 
-async fn device_register_handler(State(state): State<Arc<AppState>>) -> String {
+async fn device_register_handler(State(state): State<Arc<AppState>>) -> Json<DeviceRegisterResult> {
     let id = device_id::DeviceID::new(&state.id_signing_key);
-    serde_json::to_string(&DeviceRegisterResult {
+    Json(DeviceRegisterResult {
         id: id.to_string(),
         raw: device_id::DeviceID::encode(id.raw()),
     })
-    .unwrap()
 }
 
 const SERVER_ACTOR_ID: [u8; 1] = [0];
@@ -92,14 +88,8 @@ async fn sync_handler(State(state): State<Arc<AppState>>, ws: WebSocketUpgrade) 
 }
 
 async fn receive_binary_message(socket: &mut WebSocket) -> Result<Option<Vec<u8>>> {
-    let msg = match socket.recv().await {
-        Some(Ok(msg)) => msg,
-        Some(Err(e)) => {
-            return Err(e.into());
-        }
-        None => {
-            return Ok(None);
-        }
+    let Some(msg) = socket.recv().await.transpose()? else {
+        return Ok(None);
     };
 
     match msg {
@@ -116,14 +106,13 @@ async fn receive_binary_message(socket: &mut WebSocket) -> Result<Option<Vec<u8>
 }
 
 async fn sync_doc_locked(
-    state: Arc<AppState>,
+    state: &Arc<AppState>,
     socket: &mut WebSocket,
     doc_id: &str,
     expected_author_id: &ActorId,
 ) -> Result<Automerge> {
-    let actor_id = ActorId::from(&SERVER_ACTOR_ID);
     let mut doc = {
-        let state = Arc::clone(&state);
+        let state = Arc::clone(state);
         let doc_id = doc_id.to_owned();
         tokio::task::spawn_blocking(move || state.list_store.load(&doc_id))
             .await
@@ -131,18 +120,12 @@ async fn sync_doc_locked(
             .context("error opening document")?
     }
     .unwrap_or_else(Automerge::new)
-    .with_actor(actor_id);
+    .with_actor(ActorId::from(&SERVER_ACTOR_ID));
     let mut sync_state = automerge::sync::State::new();
 
     loop {
-        let payload = match receive_binary_message(socket).await {
-            Err(e) => {
-                return Err(e);
-            }
-            Ok(None) => {
-                bail!("socket closed before sync was done");
-            } // socket closed before receiving proto version
-            Ok(Some(data)) => data,
+        let Some(payload) = receive_binary_message(socket).await? else {
+            bail!("socket closed before sync was done");
         };
 
         info!("received sync message ({} bytes)", payload.len());
@@ -188,70 +171,59 @@ async fn sync_doc_locked(
         }
     }
 
-    {
-        let state = Arc::clone(&state);
-        let doc_id = doc_id.to_owned();
-        let mut doc = doc.clone();
-
-        tokio::task::spawn_blocking(move || state.list_store.save(&doc_id, &mut doc))
-            .await
-            .context("panic saving doc")?
-            .context("error saving doc")?;
-    }
-
-    Ok(doc)
+    let state = Arc::clone(state);
+    let doc_id = doc_id.to_owned();
+    tokio::task::spawn_blocking(move || state.list_store.save(&doc_id, &mut doc).map(|()| doc))
+        .await
+        .context("panic saving doc")?
+        .context("error saving doc")
 }
 
 async fn sync_doc(
-    state: Arc<AppState>,
+    state: &Arc<AppState>,
     socket: &mut WebSocket,
     expected_author_id: &ActorId,
 ) -> Result<Option<Automerge>> {
-    let doc_id = match receive_binary_message(socket)
+    let Some(data) = receive_binary_message(socket)
         .await
         .context("error receiving doc id")?
-    {
-        None => {
-            return Ok(None);
-        }
-        Some(data) => String::from_utf8(data).context("doc ID is not valid UTF-8")?,
+    else {
+        return Ok(None);
     };
+    let doc_id = String::from_utf8(data).context("doc ID is not valid UTF-8")?;
 
-    info!("synchronizing document {}", &doc_id);
+    info!("synchronizing document {}", doc_id);
 
     let _doc_lock = state.doc_locks.lock(&doc_id).await;
-    let doc = sync_doc_locked(Arc::clone(&state), socket, &doc_id, expected_author_id).await?;
-
-    Ok(Some(doc))
+    sync_doc_locked(state, socket, &doc_id, expected_author_id)
+        .await
+        .map(Some)
 }
 
 async fn receive_protocol_and_device_id(
     state: &AppState,
     socket: &mut WebSocket,
 ) -> Result<Option<device_id::DeviceID>> {
-    match receive_binary_message(socket)
+    let Some(proto_version) = receive_binary_message(socket)
         .await
         .context("error receiving proto version")?
-    {
-        None => {
-            return Ok(None);
-        } // socket closed before receiving proto version
-        Some(data) => {
-            if data.len() != 1 || data[0] != 1 {
-                bail!("received invalid proto version (len: {})", data.len());
-            }
-        }
+    else {
+        return Ok(None);
     };
+    if proto_version != [1] {
+        bail!(
+            "received invalid proto version (len: {})",
+            proto_version.len()
+        );
+    }
 
-    let device_id_str = match receive_binary_message(socket)
+    let Some(data) = receive_binary_message(socket)
         .await
         .context("error receiving device ID")?
-    {
-        None => {
-            return Ok(None);
-        } // socket closed before receiving device ID
-        Some(data) => String::from_utf8_lossy(&data).into_owned(),
+    else {
+        return Ok(None);
     };
+    let device_id_str = String::from_utf8(data).context("device ID is not valid UTF-8")?;
 
     let device_id = device_id::DeviceID::from_string(&state.id_signing_key, &device_id_str)
         .context("error parsing device ID")?;
@@ -267,16 +239,14 @@ async fn sync_socket_handler(state: Arc<AppState>, mut socket: WebSocket) {
             error!("error initializing sync: {:#}", e);
             return;
         }
-        Ok(None) => {
-            return;
-        }
+        Ok(None) => return,
         Ok(Some(id)) => id,
     };
 
     let expected_actor_id = ActorId::from(device_id.raw());
 
     loop {
-        match sync_doc(Arc::clone(&state), &mut socket, &expected_actor_id).await {
+        match sync_doc(&state, &mut socket, &expected_actor_id).await {
             Err(e) => {
                 error!("sync failed: {:#}", e);
                 return;
@@ -292,52 +262,32 @@ async fn sync_socket_handler(state: Arc<AppState>, mut socket: WebSocket) {
     }
 }
 
-static INDEX_HTML: &str = "index.html";
+const INDEX_HTML: &str = "index.html";
 
-async fn asset_handler(uri: Uri) -> impl IntoResponse {
+async fn asset_handler(uri: Uri) -> Response {
     let path = uri.path().trim_start_matches('/');
 
     if path.is_empty() || path == INDEX_HTML {
-        return index_html().await;
+        return index_html();
     }
 
     match Assets::get(path) {
         Some(content) => {
-            let body = boxed(Full::from(content.data));
             let mime = mime_guess::from_path(path).first_or_octet_stream();
-
-            Response::builder()
-                .header(header::CONTENT_TYPE, mime.as_ref())
-                .body(body)
-                .unwrap()
+            ([(header::CONTENT_TYPE, mime.as_ref())], content.data).into_response()
         }
-        None => {
-            if path.contains('.') {
-                return not_found().await;
-            }
-
-            index_html().await
-        }
+        None if path.contains('.') => not_found(),
+        None => index_html(),
     }
 }
 
-async fn index_html() -> Response {
+fn index_html() -> Response {
     match Assets::get(INDEX_HTML) {
-        Some(content) => {
-            let body = boxed(Full::from(content.data));
-
-            Response::builder()
-                .header(header::CONTENT_TYPE, "text/html")
-                .body(body)
-                .unwrap()
-        }
-        None => not_found().await,
+        Some(content) => ([(header::CONTENT_TYPE, "text/html")], content.data).into_response(),
+        None => not_found(),
     }
 }
 
-async fn not_found() -> Response {
-    Response::builder()
-        .status(StatusCode::NOT_FOUND)
-        .body(boxed(Full::from("404")))
-        .unwrap()
+fn not_found() -> Response {
+    (StatusCode::NOT_FOUND, "404").into_response()
 }

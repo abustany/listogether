@@ -7,19 +7,19 @@ use uuid::{Uuid, Variant, Version};
 
 use crate::device_id::RAW_DEVICE_ID_LEN;
 
-pub trait ListStore {
+pub trait ListStore: Send + Sync {
     fn load(&self, id: &str) -> Result<Option<Automerge>>;
     fn save(&self, id: &str, doc: &mut Automerge) -> Result<()>;
 }
 
 pub struct FSStore {
-    base_dir: String,
+    base_dir: PathBuf,
 }
 
 impl FSStore {
-    pub fn new(base_dir: &str) -> Self {
+    pub fn new(base_dir: impl Into<PathBuf>) -> Self {
         FSStore {
-            base_dir: base_dir.to_owned(),
+            base_dir: base_dir.into(),
         }
     }
 
@@ -27,18 +27,16 @@ impl FSStore {
         if !is_valid_doc_id(id) {
             bail!("invalid document ID");
         }
-        Ok([&self.base_dir, id].iter().collect())
+        Ok(self.base_dir.join(id))
     }
 }
 
 impl ListStore for FSStore {
     fn load(&self, id: &str) -> Result<Option<Automerge>> {
         let data = match std::fs::read(self.list_path(id)?) {
+            Ok(data) => data,
             Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),
-            Err(e) => {
-                return Err(e).context("error opening file");
-            }
-            Ok(f) => f,
+            Err(e) => return Err(e).context("error opening file"),
         };
 
         Automerge::load(&data)
@@ -47,8 +45,7 @@ impl ListStore for FSStore {
     }
 
     fn save(&self, id: &str, doc: &mut Automerge) -> Result<()> {
-        std::fs::write(self.list_path(id)?, doc.save())?;
-        Ok(())
+        std::fs::write(self.list_path(id)?, doc.save()).context("error writing file")
     }
 }
 

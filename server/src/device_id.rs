@@ -1,4 +1,6 @@
-use anyhow::{anyhow, bail, Context, Result};
+use std::str::FromStr;
+
+use anyhow::{bail, Context, Result};
 use base64::Engine as _;
 use ecdsa::signature::{Signer as _, Verifier as _};
 use rand::RngCore;
@@ -18,12 +20,11 @@ pub struct SigningKey(Key);
 
 impl DeviceID {
     pub fn new(signing_key: &SigningKey) -> Self {
-        // 1. Generate a random ID
         let mut random_data = [0u8; RAW_DEVICE_ID_LEN];
         rand::thread_rng().fill_bytes(&mut random_data);
 
-        // 2. Sign it so that we make sure we emitted this ID
-        let sig: Signature = signing_key.as_ref().sign(&random_data);
+        // The signature proves that this server created the ID.
+        let sig: Signature = signing_key.0.sign(&random_data);
         let sig_bytes = sig.to_bytes();
         assert_eq!(SIGNATURE_LEN, sig_bytes.len());
 
@@ -33,15 +34,15 @@ impl DeviceID {
     pub fn from_string(signing_key: &SigningKey, s: &str) -> Result<Self> {
         let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(s)?;
         if bytes.len() != SIGNATURE_LEN + RAW_DEVICE_ID_LEN {
-            return Err(anyhow!("invalid ID size"));
+            bail!("invalid ID size");
         }
 
-        let sig =
-            Signature::from_slice(&bytes[0..SIGNATURE_LEN]).context("error parsing signature")?;
+        let (sig, raw) = bytes.split_at(SIGNATURE_LEN);
+        let sig = Signature::from_slice(sig).context("error parsing signature")?;
         signing_key
-            .as_ref()
-            .as_ref()
-            .verify(&bytes[SIGNATURE_LEN..], &sig)
+            .0
+            .verifying_key()
+            .verify(raw, &sig)
             .context("error validating signature")?;
 
         Ok(DeviceID(bytes))
@@ -63,13 +64,6 @@ impl std::fmt::Display for DeviceID {
 }
 
 impl SigningKey {
-    pub fn from_string(s: &str) -> Result<Self> {
-        let sig_bytes = base64::engine::general_purpose::STANDARD
-            .decode(s)
-            .context("error decoding base64")?;
-        Self::from_bytes(&sig_bytes)
-    }
-
     fn from_bytes(bytes: &[u8]) -> Result<Self> {
         // from_slice also accepts keys a few bytes shorter and pads them with zeros, but
         // to_base64 always writes KEY_LEN bytes, so a shorter key is a mistake.
@@ -85,13 +79,18 @@ impl SigningKey {
     }
 
     pub fn to_base64(&self) -> String {
-        base64::engine::general_purpose::STANDARD.encode(self.as_ref().to_bytes())
+        base64::engine::general_purpose::STANDARD.encode(self.0.to_bytes())
     }
 }
 
-impl AsRef<Key> for SigningKey {
-    fn as_ref(&self) -> &Key {
-        &self.0
+impl FromStr for SigningKey {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(s)
+            .context("error decoding base64")?;
+        Self::from_bytes(&bytes)
     }
 }
 
@@ -104,9 +103,8 @@ mod test {
     #[test]
     fn test_device_id() {
         let signing_key = SigningKey::generate();
-        let device_id = DeviceID::new(&signing_key);
-        let device_id_str = device_id.to_string();
-        assert!(DeviceID::from_string(&signing_key, &device_id_str).is_ok());
+        let device_id_str = DeviceID::new(&signing_key).to_string();
+        DeviceID::from_string(&signing_key, &device_id_str).unwrap();
 
         let other_signing_key = SigningKey::generate();
         assert!(DeviceID::from_string(&other_signing_key, &device_id_str).is_err());
@@ -117,23 +115,21 @@ mod test {
         let signing_key = SigningKey::generate();
         let device_id_str = DeviceID::new(&signing_key).to_string();
 
-        let signing_key_str = signing_key.to_base64();
-        let parsed_signing_key = SigningKey::from_string(&signing_key_str);
-        assert!(parsed_signing_key.is_ok());
-
-        let parsed_signing_key = parsed_signing_key.unwrap();
-        assert!(DeviceID::from_string(&parsed_signing_key, &device_id_str).is_ok());
+        let parsed_signing_key: SigningKey = signing_key.to_base64().parse().unwrap();
+        DeviceID::from_string(&parsed_signing_key, &device_id_str).unwrap();
     }
 
     #[test]
     fn test_invalid_signing_key() {
-        assert!(SigningKey::from_string("").is_err());
-        assert!(SigningKey::from_string("not base64!").is_err());
+        let parse = |s: &str| s.parse::<SigningKey>();
         let encode = |bytes: &[u8]| base64::engine::general_purpose::STANDARD.encode(bytes);
-        assert!(SigningKey::from_string(&encode(&[1; 31])).is_err());
-        assert!(SigningKey::from_string(&encode(&[1; 33])).is_err());
+
+        assert!(parse("").is_err());
+        assert!(parse("not base64!").is_err());
+        assert!(parse(&encode(&[1; 31])).is_err());
+        assert!(parse(&encode(&[1; 33])).is_err());
         // zero is not a valid P-256 scalar
-        assert!(SigningKey::from_string(&encode(&[0; 32])).is_err());
-        assert!(SigningKey::from_string(&encode(&[1; 32])).is_ok());
+        assert!(parse(&encode(&[0; 32])).is_err());
+        assert!(parse(&encode(&[1; 32])).is_ok());
     }
 }
