@@ -14,7 +14,7 @@ Collaborative todo lists. Offline-first PWA, synced with Automerge.
 - Server: `pnpm check` (cargo fmt + clippy), `pnpm test` (cargo test), `pnpm format`. Run it with `cd server && cargo run -- serve --id-signing-key "$(cat id_signing_key.txt)" --lists-dir <dir>`.
 - E2E: `cd e2e && pnpm test`, `pnpm typecheck`, `pnpm check` (oxlint + oxfmt).
 - Formatting: oxfmt, 120 columns.
-- Nix: `nix build .#ui` builds the UI. When `pnpm-lock.yaml` changes, update the `pnpmDeps` hash in `flake.nix`: set it to `""`, build, and copy the hash from the error.
+- Nix: `nix build .#ui` builds the UI, `nix build` builds the server with the UI embedded, `nix run . -- serve …` runs it. The server derivation sets `allowedReferences`, so the build fails if the binary refers to anything other than glibc and gcc's `libgcc` output (libiconv on macOS). When `pnpm-lock.yaml` changes, update the `pnpmDeps` hash in `flake.nix`: set it to `""`, build, and copy the hash from the error.
 - Docker: run `pnpm --filter listogether build` first. The image copies `ui/dist` from the host and does not build the UI.
 
 ## UI architecture

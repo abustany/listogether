@@ -10,6 +10,7 @@
         nixpkgs.follows = "nixpkgs";
       };
     };
+    crane.url = "github:ipetkov/crane";
   };
 
   outputs = {
@@ -17,6 +18,7 @@
     nixpkgs,
     flake-utils,
     rust-overlay,
+    crane,
     ...
   }:
     flake-utils.lib.eachDefaultSystem (system:
@@ -34,6 +36,7 @@
           withFfmpeg = false;
         };
         rust = pkgs.rust-bin.fromRustupToolchainFile ./server/rust-toolchain.toml;
+        craneLib = (crane.mkLib pkgs).overrideToolchain rust;
         rev = if (self ? shortRev) then self.shortRev else "dev";
 
         pnpmManifests = [
@@ -86,12 +89,49 @@
             runHook postInstall
           '';
         });
+
+        serverLinuxLibs = [
+          pkgs.stdenv.cc.libc
+          # has libgcc_s without the rest of gcc-lib (libstdc++…)
+          pkgs.stdenv.cc.cc.libgcc
+        ];
+
+        serverArgs = {
+          src = craneLib.cleanCargoSource ./server;
+          strictDeps = true;
+        };
+
+        server = craneLib.buildPackage (
+          serverArgs
+          // {
+            pname = "listogether-server";
+            version = rev;
+            cargoArtifacts = craneLib.buildDepsOnly serverArgs;
+            # rust-embed reads the UI from ../ui/dist at compile time
+            preBuild = ''
+              mkdir -p ../ui
+              cp -r ${ui} ../ui/dist
+            '';
+            # pnpm -r test runs the tests
+            doCheck = false;
+            # keeps the UI, the Rust toolchain and the vendored crates out of the closure
+            allowedReferences = if pkgs.stdenv.hostPlatform.isLinux then serverLinuxLibs else [ pkgs.libiconv ];
+          }
+          // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+            postFixup = ''
+              patchelf --set-rpath ${pkgs.lib.makeLibraryPath serverLinuxLibs} $out/bin/listogether-server
+            '';
+          }
+        );
       in
       with pkgs;
       {
         packages = {
-          inherit ui;
+          inherit ui server;
+          default = server;
         };
+
+        apps.default = flake-utils.lib.mkApp { drv = server; };
 
         devShells.default = pkgs.mkShell {
           buildInputs = [
