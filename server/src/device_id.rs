@@ -7,7 +7,7 @@ type Curve = p256::NistP256;
 type Key = ecdsa::SigningKey<Curve>;
 type Signature = ecdsa::Signature<Curve>;
 
-const ID_LEN: usize = 16; // bytes
+pub const RAW_DEVICE_ID_LEN: usize = 16; // bytes
 const SIGNATURE_LEN: usize = 64; // bytes
 
 pub struct DeviceID(Vec<u8>);
@@ -18,7 +18,7 @@ pub struct SigningKey(Key);
 impl DeviceID {
     pub fn new(signing_key: &SigningKey) -> Self {
         // 1. Generate a random ID
-        let mut random_data = [0u8; ID_LEN];
+        let mut random_data = [0u8; RAW_DEVICE_ID_LEN];
         rand::thread_rng().fill_bytes(&mut random_data);
 
         // 2. Sign it so that we make sure we emitted this ID
@@ -31,7 +31,7 @@ impl DeviceID {
 
     pub fn from_string(signing_key: &SigningKey, s: &str) -> Result<Self> {
         let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(s)?;
-        if bytes.len() != SIGNATURE_LEN + ID_LEN {
+        if bytes.len() != SIGNATURE_LEN + RAW_DEVICE_ID_LEN {
             return Err(anyhow!("invalid ID size"));
         }
 

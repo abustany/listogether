@@ -214,7 +214,7 @@ async fn sync_doc(
         None => {
             return Ok(None);
         }
-        Some(data) => String::from_utf8_lossy(&data).into_owned(),
+        Some(data) => String::from_utf8(data).context("doc ID is not valid UTF-8")?,
     };
 
     info!("synchronizing document {}", &doc_id);
